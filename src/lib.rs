@@ -1,8 +1,12 @@
 mod fsa;
 
+#[allow(unused)]
 #[cfg(test)]
 mod tests {
     use crate::fsa::{Automata, build_fsa};
+    use std::fs::File;
+    use std::io;
+    use std::io::BufRead;
 
     #[test]
     fn add_word() {
@@ -46,7 +50,7 @@ mod tests {
     fn common_prefix() {
         let mut automata = Automata::new(100);
 
-        build_fsa(&mut automata, &["ciao bau"]);
+        build_fsa(&mut automata, &["ciaoooooooooo".to_string()]);
 
         let i = automata.common_prefix("ciao");
         assert_eq!(i, 4);
@@ -109,56 +113,83 @@ mod tests {
     }
 
     #[test]
-    fn build_automata() {
+    fn small_word_list() {
         let mut automata = Automata::new(100);
 
-        assert!(automata.delta_star(0, &String::from("ciao")).is_none());
-        let string_collection = ["ciao", "miao", "x"];
+        let string_collection = collection_from_file("words_small.txt").unwrap();
+
+        //let string_collection = ["ciao", "miao", "x"];
         crate::fsa::build_fsa(&mut automata, &string_collection);
-
-        assert!(automata.delta_star(0, &String::from("ciao")).is_some());
-        assert!(automata.delta_star(0, &String::from("miao")).is_some());
-        assert!(automata.delta_star(0, &String::from("x")).is_some());
-
-        assert!(automata.delta_star(0, &String::from("xy")).is_none());
-        assert!(automata.delta_star(0, &String::from("caio")).is_none());
-        assert_eq!(
-            automata.is_final_state(
-                automata
-                    .delta_star(0, &String::from("cia"))
-                    .expect("should have reached a non accepting state instead of an error state!")
-            ),
-            false
-        );
-        assert_eq!(
-            automata.is_final_state(
-                automata
-                    .delta_star(0, &String::from("mi"))
-                    .expect("should have reached a non accepting state instead of an error state!")
-            ),
-            false
-        );
+        are_strings_accepted(&automata, &string_collection);
     }
 
-    //#[test]
-    //fn build_automata_2() {
-    //    let mut automata = Automata::new(100);
+    #[test]
+    fn word_list_len_100() {
+        let mut automata = Automata::new(100);
+
+        let string_collection = collection_from_file("100_words.txt").unwrap();
+
+        crate::fsa::build_fsa(&mut automata, &string_collection);
+        are_strings_accepted(&automata, &string_collection);
+    }
+
+    #[test]
+    fn word_list_len_300() {
+        let mut automata = Automata::new(200);
+
+        let string_collection = collection_from_file("300_words.txt").unwrap();
+
+        crate::fsa::build_fsa(&mut automata, &string_collection);
+        are_strings_accepted(&automata, &string_collection);
+    }
+
+    #[test]
+    fn word_list_len_1000() {
+        let mut automata = Automata::new(200);
+
+        let string_collection = collection_from_file("1000_words.txt").unwrap();
+
+        crate::fsa::build_fsa(&mut automata, &string_collection);
+        are_strings_accepted(&automata, &string_collection);
+    }
+
+    /*
+     *
+     *   END TESTS
+     *
+     */
+
     //
-    //    assert!(automata.delta_star(0, &String::from("ciao")).is_none());
-    //    let string_collection = ["ciao", "ciaone"];
-    //    crate::fsa::build_fsa(&mut automata, &string_collection);
+    //------------------------------------------
+    //helper functions
     //
-    //    let s1 = automata
-    //        .delta_star(0, &String::from("ciao"))
-    //        .expect("should be valid state");
-    //
-    //    let s2 = automata
-    //        .delta_star(0, &String::from("ciaone"))
-    //        .expect("should be valid state");
-    //
-    //    assert!(s2 > s1);
-    //
-    //    assert!(automata.is_final_state(s1));
-    //    assert!(automata.is_final_state(s2));
-    //}
+
+    //read a list of words from file and return the corresponding vector
+    fn collection_from_file(filename: &str) -> Result<Vec<String>, &str> {
+        let mut string_collection: Vec<String> = Vec::new();
+
+        if let Ok(lines) = read_lines(filename) {
+            for (i, line) in lines.filter(|x| x.is_ok()).enumerate() {
+                string_collection.push(line.expect("couldn't read line"));
+            }
+            return Ok(string_collection);
+        }
+        return Err("couldn't read lines");
+    }
+
+    fn read_lines(filename: &str) -> io::Result<io::Lines<io::BufReader<File>>> {
+        let file = File::open(filename)?;
+
+        Ok(io::BufReader::new(file).lines())
+    }
+
+    fn are_strings_accepted(fsa: &Automata, str_collection: &Vec<String>) {
+        for (i, s) in str_collection.iter().enumerate() {
+            let reached_state = fsa
+                .delta_star_from_initial_state(&s)
+                .expect("reached error state starting from string {s}");
+
+            assert!(fsa.is_final_state(reached_state));
+        }
+    }
 }

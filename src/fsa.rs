@@ -1,41 +1,51 @@
-use std::{cell::RefCell, collections::BTreeMap};
+use std::{
+    collections::BTreeMap,
+    fs::File,
+    io::{self, Write},
+};
 
+#[derive(Debug)]
 struct State {
     id: usize,
     is_final: bool,
-    transitions: RefCell<BTreeMap<u8, usize>>,
+    transitions: BTreeMap<u8, usize>,
 }
 
 const REGISTER_CAPACITY: usize = 256;
+const REGISTER_COUNT_MASK: usize = 255;
 
 //array of frozen states (their identifiers)
+#[derive(Debug)]
 struct Register {
     elements: [usize; REGISTER_CAPACITY],
     count: usize,
 }
 
+#[derive(Debug)]
 pub struct Automata {
-    states: RefCell<Vec<State>>,
+    states: Vec<State>,
     last_str: [u8; 100],
-    register: RefCell<Register>,
+    register: Register,
 }
 
 //strings are supposed to sorted
-pub fn build_fsa(fsa: &mut Automata, strings: &[&str]) {
+pub fn build_fsa(fsa: &mut Automata, strings: &[String]) {
+    let mut previous_str = "";
     for item in strings.iter() {
         //index of last character of common prefix between current item and the last
         //processed word
-        let prefix_len = fsa.common_prefix(*item);
+        let prefix_len = fsa.common_prefix(&item);
 
+        //let curr_item = &item[..];
         let prefix = &item[0..prefix_len];
 
         let last_state_index = fsa
             .delta_star_from_initial_state(prefix)
-            .expect("transitioned to err state after checking common prefix!");
+            .expect(&format!("transitioned to err state after checking common prefix!\nWas processing {0} and common prefix was {1}.\nLast str is: {2}", item, prefix, previous_str));
 
         let suffix = &item[prefix_len..];
 
-        assert!(last_state_index < fsa.states.borrow().len());
+        assert!(last_state_index < fsa.states.len());
 
         //
         if fsa.state_has_children(last_state_index) {
@@ -47,9 +57,47 @@ pub fn build_fsa(fsa: &mut Automata, strings: &[&str]) {
         //maybe?
         fsa.add_suffix_to_fsa(last_state_index, suffix.as_bytes());
 
-        let suffix_len = suffix.len();
-        fsa.last_str[..suffix_len].copy_from_slice(&suffix.as_bytes()[..suffix_len]);
+        let word_len = item.len();
+
+        fsa.clear_last_str();
+        fsa.last_str[..word_len].copy_from_slice(&item.as_bytes()[..word_len]);
+
+        previous_str = &item;
     }
+
+    fsa.replace_or_register(0);
+}
+
+pub fn dump_graph(fsa: &Automata, file_path: &str) -> io::Result<()> {
+    let mut file = File::create(file_path)?;
+
+    file.write(b"digraph DFA {")?;
+    file.write(b"    {0} [shape=circle, color=blue, label=\"start\"];")?;
+
+    //mark the accepting states
+    for state in &fsa.states {
+        if state.is_final {
+            let s = format!("    {} [shape=doublecircle, color=green];", state.id);
+            file.write(s.as_bytes())?;
+        }
+    }
+
+    //add transitions
+    for state in &fsa.states {
+        let state_transitions = &state.transitions;
+
+        for (on_char, to_state) in state_transitions.iter() {
+            let s = format!(
+                "    {} -> {} [label=\"{}\"];",
+                state.id, to_state, *on_char as char
+            );
+            file.write(s.as_bytes())?;
+        }
+    }
+
+    file.write(b"}")?;
+
+    Ok(())
 }
 
 impl Automata {
@@ -60,7 +108,7 @@ impl Automata {
             id: 0,
             is_final: false,
             //transitions: BTreeMap::with_capacity(alphabet_dim),
-            transitions: RefCell::new(BTreeMap::new()),
+            transitions: BTreeMap::new(),
         });
 
         assert_eq!(tmp.len(), 1);
@@ -68,16 +116,15 @@ impl Automata {
         Automata {
             states: tmp.into(),
             last_str: [0; 100],
-            register: RefCell::new(Register {
+            register: Register {
                 elements: [0; REGISTER_CAPACITY],
                 count: 0,
-            }),
+            },
         }
     }
 
     pub fn is_final_state(&self, state: usize) -> bool {
         self.states
-            .borrow()
             .get(state)
             .expect("no state with index: {state}")
             .is_final
@@ -85,11 +132,11 @@ impl Automata {
 
     //TODO should be moved to state impl
     pub fn delta_star(&self, state: usize, input_tape: &str) -> Option<usize> {
-        assert!(self.states.borrow().len() > 0);
+        assert!(self.states.len() > 0);
         let mut current_state = state;
 
         for byte in input_tape.as_bytes().iter() {
-            if let Some(new_state) = self.states.borrow()[current_state].delta(*byte) {
+            if let Some(new_state) = self.states[current_state].delta(*byte) {
                 //move to new state
                 current_state = new_state;
             } else {
@@ -105,7 +152,7 @@ impl Automata {
     }
 
     pub fn get_n_of_states(&self) -> usize {
-        self.states.borrow().len()
+        self.states.len()
     }
 
     //get the index of the last prefix character inside y
@@ -127,20 +174,20 @@ impl Automata {
     //start keeping track of suffix y in the fsa
     //new states will originate from `last_state`
     //a suffix = "" will do nothing
-    pub fn add_suffix_to_fsa(&self, from_state: usize, y: &[u8]) {
+    pub fn add_suffix_to_fsa(&mut self, from_state: usize, y: &[u8]) {
         assert!(y.len() <= 100);
 
         let string_len = y.len();
 
-        //let initial_number_of_states = self.states.borrow().len();
+        let initial_number_of_states = self.states.len();
 
         let mut current_state = from_state;
 
         for (i, byte) in y.iter().enumerate() {
             //get the current state and add a new transition to it
-            let new_state_id = self.states.borrow().len();
+            let new_state_id = self.states.len();
 
-            self.states.borrow_mut()[current_state].add_transition(*byte, new_state_id);
+            self.states[current_state].add_transition(*byte, new_state_id);
 
             //if last loop iteration the state is to be marked as final
             let is_state_final = i == string_len - 1;
@@ -148,88 +195,90 @@ impl Automata {
             let new_state: State = State {
                 id: new_state_id,
                 is_final: is_state_final,
-                transitions: RefCell::new(BTreeMap::new()),
+                transitions: BTreeMap::new(),
             };
 
-            self.states.borrow_mut().push(new_state);
+            self.states.push(new_state);
 
             current_state = new_state_id;
         }
 
-        //assert!(initial_number_of_states <= self.states.borrow().len());
+        assert!(initial_number_of_states <= self.states.len());
     }
 
     //assume state has children
-    fn replace_or_register(&self, state_index: usize) {
-        let mut automata_states = self.states.borrow_mut();
-
-        let state = &automata_states[state_index];
+    fn replace_or_register(&mut self, state_index: usize) {
+        let state = &self.states[state_index];
         assert!(state.has_children());
-        //let child = &automata_states[state.last_child().unwrap()];
-        let child_index = automata_states[state.last_child().unwrap()].id;
 
-        drop(automata_states);
+        let child_index = self.states[state.last_child().unwrap()].id;
+        //println!("r_o_r processing node {state_index}. child index: {child_index}");
 
         if self.state_has_children(child_index) {
             self.replace_or_register(child_index);
         }
 
-        //equivalent state in register (cache)
-        //if let Some(state_to_merge_with) = self.register_contains_equivalent(child_index) {
-        //    state.merge_with(state_to_merge_with);
-        //
-        //    //let state_id = state.id;
-        //
-        //    automata_states.pop();
-        //
-        //    //assert_eq!(state_id, self.get_n_of_states() - 1);
-        //
-        //    return;
-        //}
+        //merge states added by previous add_suffix_to_fsa that are equivalent to the ones in the register
+        if let Some(state_to_merge_with) = self.register_contains_equivalent(child_index) {
+            //
+            //now get a mutable reference to the state who's child is to be merged
+            let current_state = &mut self.states[state_index];
+
+            //merge last child
+            current_state.merge_with(state_to_merge_with);
+
+            let state_id = current_state.id;
+
+            self.states.pop();
+        } else {
+            self.register.add_state(child_index);
+        }
     }
 
-    fn register_contains_equivalent(&self, state: &State) -> Option<usize> {
-        let cached_states = &self.register.borrow().elements;
+    fn register_contains_equivalent(&self, state_index: usize) -> Option<usize> {
+        let cached_states = &self.register.elements;
 
-        let automata_states = self.states.borrow();
+        let state = &self.states[state_index];
+        for i in 0..self.register.count {
+            let cached_state_index = cached_states[i];
 
-        let found = cached_states.iter().find(|x| {
-            let tmp = &automata_states[**x];
-
-            if tmp.is_equal(state) {
-                return true;
+            let cached_state = &self.states[cached_state_index];
+            if state.is_equal(cached_state) {
+                return Some(cached_state_index);
             }
-            false
-        });
+        }
 
-        let res = found.map(|x| automata_states[*x].id);
-        return res;
+        return None;
     }
 
     fn state_has_children(&self, state_index: usize) -> bool {
-        return self.states.borrow()[state_index].has_children();
+        return self.states[state_index].has_children();
+    }
+
+    //SIMD the fucker
+    //TODO also get rid of the unwrap
+    fn clear_last_str(&mut self) {
+        let last_str_real_len = self.last_str.iter().position(|x| *x == 0).unwrap();
+        for i in 0..last_str_real_len {
+            self.last_str[i] = 0;
+        }
     }
 }
 
 impl State {
     fn delta(&self, c: u8) -> Option<usize> {
-        let state_transitions = self.transitions.borrow();
-
-        state_transitions
-            .get(&c)
-            .copied()
-            .map(|new_state| new_state)
+        self.transitions.get(&c).copied().map(|new_state| new_state)
     }
 
     //check whether current state has outgoing transitions
     fn has_children(&self) -> bool {
-        !(self.transitions.borrow().is_empty())
+        !(self.transitions.is_empty())
     }
 
     //get last child of current state
     //last is based on lexicographic order
     fn last_child(&self) -> Option<usize> {
-        match self.transitions.borrow().last_key_value() {
+        match self.transitions.last_key_value() {
             Some((_, next_state)) => Some(*next_state),
             None => None,
         }
@@ -237,15 +286,7 @@ impl State {
 
     fn add_transition(&mut self, y: u8, new_state_id: usize) {
         assert!(self.id < new_state_id);
-        //let mut next_state_id: usize = self.id + 1;
-        //if let Some((key, value)) = self.transitions.borrow().last_key_value() {
-        //    next_state_id = *value + 1;
-        //    println!(
-        //        "add transition from state {0} to future state {next_state_id}",
-        //        self.id
-        //    );
-        //}
-        self.transitions.borrow_mut().insert(y, new_state_id);
+        self.transitions.insert(y, new_state_id);
     }
 
     //are both states in the same equivalence class
@@ -254,30 +295,25 @@ impl State {
             return false;
         }
 
-        match self.transitions.borrow().len() != other_state.transitions.borrow().len() {
+        match self.transitions.len() != other_state.transitions.len() {
             true => return false,
             false => (),
         }
 
-        let self_transitions = self.transitions.borrow();
-        let other_state_transitions = other_state.transitions.borrow();
+        let self_transitions = &self.transitions;
+        let other_state_transitions = &other_state.transitions;
         //actually check transitions
         //NOTE they are ordered by key using a BTreeMap
-        self_transitions
+        let all_transitions_equal = self_transitions
             .iter()
-            .zip(&*other_state_transitions)
+            .zip(other_state_transitions)
             .all(|(x, y)| (*x.0 == *y.0) && (*x.1 == *y.1));
 
-        return true;
+        return all_transitions_equal;
     }
 
-    fn merge_with(&self, other_state: usize) -> bool {
-        assert_ne!(
-            *self.transitions.borrow().iter().max().unwrap().1,
-            other_state
-        );
-
-        if let Some(mut entry) = self.transitions.borrow_mut().last_entry() {
+    fn merge_with(&mut self, other_state: usize) -> bool {
+        if let Some(mut entry) = self.transitions.last_entry() {
             entry.insert(other_state);
             return true;
         }
@@ -287,9 +323,11 @@ impl State {
 }
 
 impl Register {
+    //TODO get rid of mod
     fn add_state(&mut self, state_id: usize) {
         let i = self.count % REGISTER_CAPACITY;
         self.elements[i] = state_id;
         self.count += 1;
+        self.count = self.count & REGISTER_COUNT_MASK;
     }
 }
