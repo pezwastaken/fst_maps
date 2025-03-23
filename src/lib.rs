@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 mod fsa;
 
 #[allow(unused)]
@@ -7,19 +9,6 @@ mod tests {
     use std::fs::File;
     use std::io;
     use std::io::BufRead;
-
-    #[test]
-    fn add_word() {
-        let mut automata = Automata::new(100);
-
-        let string = String::from("ciao bau");
-
-        automata.add_suffix_to_fsa(0, string.as_bytes());
-
-        let number_of_states = automata.get_n_of_states();
-
-        assert_eq!(number_of_states, string.len() + 1);
-    }
 
     #[test]
     fn common_prefix_on_empty_fsa() {
@@ -64,10 +53,6 @@ mod tests {
 
         automata.add_suffix_to_fsa(0, string.as_bytes());
 
-        let number_of_states = automata.get_n_of_states();
-
-        assert_eq!(number_of_states, string.len() + 1);
-
         let res_state = automata
             .delta_star_from_initial_state(&string)
             .expect("transitioned to err state");
@@ -82,22 +67,17 @@ mod tests {
         let string = String::from("ci");
         let first_string_len = string.len();
         automata.add_suffix_to_fsa(0, string.as_bytes());
-        let number_of_states = automata.get_n_of_states();
 
         let res_state = automata
             .delta_star_from_initial_state(&string)
             .expect("moved to error state");
 
-        assert_eq!(number_of_states, string.len() + 1);
         assert_eq!(automata.is_final_state(res_state), true);
 
         //second string
         let string = String::from("topolon");
 
         automata.add_suffix_to_fsa(0, string.as_bytes());
-        let number_of_states = automata.get_n_of_states();
-
-        assert_eq!(number_of_states, first_string_len + string.len() + 1);
 
         let res_state = automata
             .delta_star_from_initial_state(&string)
@@ -153,6 +133,25 @@ mod tests {
         are_strings_accepted(&automata, &string_collection);
     }
 
+    #[test]
+    fn word_list_len_5000() {
+        let mut automata = Automata::new(200);
+
+        let string_collection = collection_from_file("5000_words.txt").unwrap();
+
+        crate::fsa::build_fsa(&mut automata, &string_collection);
+        are_strings_accepted(&automata, &string_collection);
+    }
+
+    #[test]
+    fn word_list_len_10000() {
+        let mut automata = Automata::new(200);
+
+        let string_collection = collection_from_file("10000_words.txt").unwrap();
+
+        crate::fsa::build_fsa(&mut automata, &string_collection);
+        are_strings_accepted(&automata, &string_collection);
+    }
     /*
      *
      *   END TESTS

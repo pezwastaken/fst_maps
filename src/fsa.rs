@@ -4,6 +4,17 @@ use std::{
     io::{self, Write},
 };
 
+/*
+* TODO
+* move transitions to automata struct to reduce memory footprint
+* make it a vector or a hashmap
+*   in case of a hashmap there's need for a field (inside state) of type u8 that "points" to the
+*   last added transition
+*
+*   At that point a Hash function can be defined for type state and looking into the register
+*   (cache) for equivalent states should be easier and faster
+*/
+
 #[derive(Debug)]
 struct State {
     id: usize,
@@ -11,8 +22,9 @@ struct State {
     transitions: BTreeMap<u8, usize>,
 }
 
-const REGISTER_CAPACITY: usize = 256;
-const REGISTER_COUNT_MASK: usize = 255;
+//must always be a power of 2
+const REGISTER_CAPACITY: usize = 512;
+const REGISTER_COUNT_MASK: usize = REGISTER_CAPACITY - 1;
 
 //array of frozen states (their identifiers)
 #[derive(Debug)]
@@ -25,12 +37,15 @@ struct Register {
 pub struct Automata {
     states: Vec<State>,
     last_str: [u8; 100],
+    last_str_len: usize,
     register: Register,
 }
 
 //strings are supposed to sorted
 pub fn build_fsa(fsa: &mut Automata, strings: &[String]) {
+    //just for expect string
     let mut previous_str = "";
+
     for item in strings.iter() {
         //index of last character of common prefix between current item and the last
         //processed word
@@ -47,9 +62,7 @@ pub fn build_fsa(fsa: &mut Automata, strings: &[String]) {
 
         assert!(last_state_index < fsa.states.len());
 
-        //
         if fsa.state_has_children(last_state_index) {
-            //let last_state = &fsa.states.borrow()[last_state_index];
             fsa.replace_or_register(last_state_index);
         }
 
@@ -60,6 +73,8 @@ pub fn build_fsa(fsa: &mut Automata, strings: &[String]) {
         let word_len = item.len();
 
         fsa.clear_last_str();
+
+        fsa.last_str_len = word_len;
         fsa.last_str[..word_len].copy_from_slice(&item.as_bytes()[..word_len]);
 
         previous_str = &item;
@@ -116,6 +131,7 @@ impl Automata {
         Automata {
             states: tmp.into(),
             last_str: [0; 100],
+            last_str_len: 0,
             register: Register {
                 elements: [0; REGISTER_CAPACITY],
                 count: 0,
@@ -130,7 +146,6 @@ impl Automata {
             .is_final
     }
 
-    //TODO should be moved to state impl
     pub fn delta_star(&self, state: usize, input_tape: &str) -> Option<usize> {
         assert!(self.states.len() > 0);
         let mut current_state = state;
@@ -147,12 +162,9 @@ impl Automata {
         return Some(current_state);
     }
 
+    #[inline]
     pub fn delta_star_from_initial_state(&self, input_tape: &str) -> Option<usize> {
         self.delta_star(0, input_tape)
-    }
-
-    pub fn get_n_of_states(&self) -> usize {
-        self.states.len()
     }
 
     //get the index of the last prefix character inside y
@@ -227,7 +239,7 @@ impl Automata {
             //merge last child
             current_state.merge_with(state_to_merge_with);
 
-            let state_id = current_state.id;
+            //let state_id = current_state.id;
 
             self.states.pop();
         } else {
@@ -239,12 +251,26 @@ impl Automata {
         let cached_states = &self.register.elements;
 
         let state = &self.states[state_index];
-        for i in 0..self.register.count {
-            let cached_state_index = cached_states[i];
 
-            let cached_state = &self.states[cached_state_index];
+        let register_len: usize = self.register.count & REGISTER_COUNT_MASK;
+
+        for i in 0..register_len {
+            let cached_state_index = cached_states.get(i).expect(&format!(
+                "last word was {}, state_index is {state_index}.\nnumber of cached states: {}, accessing index {} of register",
+                &std::str::from_utf8(&self.last_str[0..self.last_str_len]).unwrap(), self.register.count, i
+            ));
+
+            let cached_state = &self.states.get(*cached_state_index).expect(&format!(
+                "last word was {}, state_index is {state_index}.\nnumber of cached states: {}, accessed index {} of register and got state {}\nnumber of states in fsa is {}",
+                &std::str::from_utf8(&self.last_str[0..self.last_str_len]).unwrap(),
+                self.register.count,
+                i,
+                *cached_state_index,
+                self.states.len()
+            ));
+
             if state.is_equal(cached_state) {
-                return Some(cached_state_index);
+                return Some(*cached_state_index);
             }
         }
 
@@ -255,28 +281,27 @@ impl Automata {
         return self.states[state_index].has_children();
     }
 
-    //SIMD the fucker
-    //TODO also get rid of the unwrap
+    #[inline]
     fn clear_last_str(&mut self) {
-        let last_str_real_len = self.last_str.iter().position(|x| *x == 0).unwrap();
-        for i in 0..last_str_real_len {
-            self.last_str[i] = 0;
-        }
+        self.last_str[0..self.last_str_len].fill(0);
     }
 }
 
 impl State {
+    #[inline]
     fn delta(&self, c: u8) -> Option<usize> {
         self.transitions.get(&c).copied().map(|new_state| new_state)
     }
 
     //check whether current state has outgoing transitions
+    #[inline]
     fn has_children(&self) -> bool {
         !(self.transitions.is_empty())
     }
 
     //get last child of current state
     //last is based on lexicographic order
+    #[inline]
     fn last_child(&self) -> Option<usize> {
         match self.transitions.last_key_value() {
             Some((_, next_state)) => Some(*next_state),
@@ -284,6 +309,7 @@ impl State {
         }
     }
 
+    #[inline]
     fn add_transition(&mut self, y: u8, new_state_id: usize) {
         assert!(self.id < new_state_id);
         self.transitions.insert(y, new_state_id);
@@ -312,6 +338,7 @@ impl State {
         return all_transitions_equal;
     }
 
+    #[inline]
     fn merge_with(&mut self, other_state: usize) -> bool {
         if let Some(mut entry) = self.transitions.last_entry() {
             entry.insert(other_state);
@@ -324,10 +351,10 @@ impl State {
 
 impl Register {
     //TODO get rid of mod
+    #[inline]
     fn add_state(&mut self, state_id: usize) {
         let i = self.count % REGISTER_CAPACITY;
         self.elements[i] = state_id;
         self.count += 1;
-        self.count = self.count & REGISTER_COUNT_MASK;
     }
 }
