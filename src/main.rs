@@ -8,7 +8,7 @@ fn main() {
     let mut automata = Automata::new(200);
 
     let mut string_collection: Vec<String> = Vec::new();
-    if let Ok(lines) = read_lines("5000_words.txt") {
+    if let Ok(lines) = read_lines("words_small.txt") {
         for (_, line) in lines.filter(|x| x.is_ok()).enumerate() {
             string_collection.push(line.expect("couldn't read line"));
         }

@@ -1,5 +1,4 @@
 use std::{
-    collections::BTreeMap,
     fs::File,
     io::{self, Write},
 };
@@ -17,9 +16,18 @@ use std::{
 
 #[derive(Debug)]
 struct State {
-    id: usize,
+    //id: usize,
     is_final: bool,
-    transitions: BTreeMap<u8, usize>,
+    transitions: Vec<(u8, usize)>,
+    //transitions: BTreeMap<u8, usize>,
+}
+
+#[derive(Debug)]
+pub struct Automata {
+    states: Vec<State>,
+    last_str: [u8; 100],
+    last_str_len: usize,
+    register: Register,
 }
 
 //must always be a power of 2
@@ -31,14 +39,6 @@ const REGISTER_COUNT_MASK: usize = REGISTER_CAPACITY - 1;
 struct Register {
     elements: [usize; REGISTER_CAPACITY],
     count: usize,
-}
-
-#[derive(Debug)]
-pub struct Automata {
-    states: Vec<State>,
-    last_str: [u8; 100],
-    last_str_len: usize,
-    register: Register,
 }
 
 //strings are supposed to sorted
@@ -90,21 +90,21 @@ pub fn dump_graph(fsa: &Automata, file_path: &str) -> io::Result<()> {
     file.write(b"    {0} [shape=circle, color=blue, label=\"start\"];")?;
 
     //mark the accepting states
-    for state in &fsa.states {
+    for (i, state) in fsa.states.iter().enumerate() {
         if state.is_final {
-            let s = format!("    {} [shape=doublecircle, color=green];", state.id);
+            let s = format!("    {} [shape=doublecircle, color=green];", i);
             file.write(s.as_bytes())?;
         }
     }
 
     //add transitions
-    for state in &fsa.states {
+    for (i, state) in fsa.states.iter().enumerate() {
         let state_transitions = &state.transitions;
 
         for (on_char, to_state) in state_transitions.iter() {
             let s = format!(
                 "    {} -> {} [label=\"{}\"];",
-                state.id, to_state, *on_char as char
+                i, *to_state, *on_char as char
             );
             file.write(s.as_bytes())?;
         }
@@ -120,10 +120,8 @@ impl Automata {
         let mut tmp = Vec::with_capacity(alphabet_dim);
 
         tmp.push(State {
-            id: 0,
             is_final: false,
-            //transitions: BTreeMap::with_capacity(alphabet_dim),
-            transitions: BTreeMap::new(),
+            transitions: Vec::new(),
         });
 
         assert_eq!(tmp.len(), 1);
@@ -153,6 +151,7 @@ impl Automata {
         for byte in input_tape.as_bytes().iter() {
             if let Some(new_state) = self.states[current_state].delta(*byte) {
                 //move to new state
+                assert!(current_state != new_state);
                 current_state = new_state;
             } else {
                 return None;
@@ -205,11 +204,11 @@ impl Automata {
             let is_state_final = i == string_len - 1;
 
             let new_state: State = State {
-                id: new_state_id,
                 is_final: is_state_final,
-                transitions: BTreeMap::new(),
+                transitions: Vec::new(),
             };
 
+            assert!(new_state.transitions.is_empty());
             self.states.push(new_state);
 
             current_state = new_state_id;
@@ -219,12 +218,24 @@ impl Automata {
     }
 
     //assume state has children
-    fn replace_or_register(&mut self, state_index: usize) {
+    pub fn replace_or_register(&mut self, state_index: usize) {
+        //println!("called ror on state {state_index}");
         let state = &self.states[state_index];
+        //println!("state:  {:?}", state);
         assert!(state.has_children());
 
-        let child_index = self.states[state.last_child().unwrap()].id;
-        //println!("r_o_r processing node {state_index}. child index: {child_index}");
+        //println!("has children is {}", state.has_children());
+
+        //let last_transition = self.states[state.last_child().unwrap()]
+        //    .transitions
+        //    .last()
+        //    .expect("replace or register called on state without outgoing transitions");
+        //let last_transition = &self.states[state.last_child().unwrap()];
+
+        //get the state `id` of the last outgoing transition from current state
+        let child_index = state.last_child().unwrap();
+
+        //println!("last child index is {}", child_index);
 
         if self.state_has_children(child_index) {
             self.replace_or_register(child_index);
@@ -290,7 +301,15 @@ impl Automata {
 impl State {
     #[inline]
     fn delta(&self, c: u8) -> Option<usize> {
-        self.transitions.get(&c).copied().map(|new_state| new_state)
+        //self.transitions.iter().position(|x| x.0 == c);
+
+        let transition = self
+            .transitions
+            .iter()
+            .find(|(transition_char, _)| *transition_char == c);
+
+        //return Some(transition?.1);
+        return transition.map(|(_, next_state)| *next_state);
     }
 
     //check whether current state has outgoing transitions
@@ -303,16 +322,21 @@ impl State {
     //last is based on lexicographic order
     #[inline]
     fn last_child(&self) -> Option<usize> {
-        match self.transitions.last_key_value() {
-            Some((_, next_state)) => Some(*next_state),
+        match self.transitions.last() {
+            Some((_, child_state)) => Some(*child_state),
             None => None,
         }
+        //match self.transitions.last_key_value() {
+        //    Some((_, next_state)) => Some(*next_state),
+        //    None => None,
+        //}
     }
 
     #[inline]
     fn add_transition(&mut self, y: u8, new_state_id: usize) {
-        assert!(self.id < new_state_id);
-        self.transitions.insert(y, new_state_id);
+        //assert!(self.id < new_state_id);
+        self.transitions.push((y, new_state_id));
+        assert!(self.transitions.len() > 0);
     }
 
     //are both states in the same equivalence class
@@ -328,20 +352,23 @@ impl State {
 
         let self_transitions = &self.transitions;
         let other_state_transitions = &other_state.transitions;
+
         //actually check transitions
-        //NOTE they are ordered by key using a BTreeMap
+        //compare char of transition 1 with char of transition 2
+        //same thing with destination states
         let all_transitions_equal = self_transitions
             .iter()
             .zip(other_state_transitions)
-            .all(|(x, y)| (*x.0 == *y.0) && (*x.1 == *y.1));
+            .all(|((char1, state1), (char2, state2))| (*char1 == *char2) && (*state1 == *state2));
 
         return all_transitions_equal;
     }
 
     #[inline]
     fn merge_with(&mut self, other_state: usize) -> bool {
-        if let Some(mut entry) = self.transitions.last_entry() {
-            entry.insert(other_state);
+        if let Some(transition) = self.transitions.last_mut() {
+            //field 1 is next state
+            transition.1 = other_state;
             return true;
         }
 
