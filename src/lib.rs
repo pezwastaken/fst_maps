@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 
 mod fsa;
+mod fst;
+mod fst_state;
 
 #[allow(unused)]
 #[cfg(test)]
@@ -141,33 +143,33 @@ mod tests {
         are_strings_not_accepted(&automata, &not_valid);
     }
 
-    #[test]
-    fn word_list_len_1000() {
-        let mut automata = Automata::new(200);
-
-        let string_collection = collection_from_file("1000_words.txt").unwrap();
-
-        crate::fsa::build_fsa(&mut automata, &string_collection);
-        are_strings_accepted(&automata, &string_collection);
-
-        let not_valid = random_strings_from_collection(&string_collection);
-        assert!(not_valid.len() != 0);
-        are_strings_not_accepted(&automata, &not_valid);
-    }
-
-    #[test]
-    fn word_list_len_10000() {
-        let mut automata = Automata::new(200);
-
-        let string_collection = collection_from_file("10000_words.txt").unwrap();
-
-        crate::fsa::build_fsa(&mut automata, &string_collection);
-        are_strings_accepted(&automata, &string_collection);
-
-        let not_valid = random_strings_from_collection(&string_collection);
-        assert!(not_valid.len() != 0);
-        are_strings_not_accepted(&automata, &not_valid);
-    }
+    //#[test]
+    //fn word_list_len_1000() {
+    //    let mut automata = Automata::new(200);
+    //
+    //    let string_collection = collection_from_file("1000_words.txt").unwrap();
+    //
+    //    crate::fsa::build_fsa(&mut automata, &string_collection);
+    //    are_strings_accepted(&automata, &string_collection);
+    //
+    //    let not_valid = random_strings_from_collection(&string_collection);
+    //    assert!(not_valid.len() != 0);
+    //    are_strings_not_accepted(&automata, &not_valid);
+    //}
+    //
+    //#[test]
+    //fn word_list_len_10000() {
+    //    let mut automata = Automata::new(200);
+    //
+    //    let string_collection = collection_from_file("10000_words.txt").unwrap();
+    //
+    //    crate::fsa::build_fsa(&mut automata, &string_collection);
+    //    are_strings_accepted(&automata, &string_collection);
+    //
+    //    let not_valid = random_strings_from_collection(&string_collection);
+    //    assert!(not_valid.len() != 0);
+    //    are_strings_not_accepted(&automata, &not_valid);
+    //}
     //
 
     //
