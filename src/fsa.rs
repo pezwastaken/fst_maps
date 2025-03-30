@@ -1,113 +1,102 @@
-use crate::fsa::automata_state::State;
+use crate::register::Register;
+use crate::register::{REGISTER_CAPACITY, REGISTER_COUNT_MASK};
+
 use std::{
     fs::File,
     io::{self, Write},
 };
 
-pub mod automata_state {
+#[derive(Debug)]
+pub struct State {
+    //id: usize,
+    pub is_final: bool,
+    pub transitions: Vec<(u8, usize)>,
+}
 
-    #[derive(Debug)]
-    pub struct State {
-        //id: usize,
-        pub is_final: bool,
-        pub transitions: Vec<(u8, usize)>,
+impl State {
+    #[inline]
+    pub fn delta(&self, c: u8) -> Option<usize> {
+        //self.transitions.iter().position(|x| x.0 == c);
+
+        let transition = self
+            .transitions
+            .iter()
+            .find(|(transition_char, _)| *transition_char == c);
+
+        //return Some(transition?.1);
+        return transition.map(|(_, next_state)| *next_state);
     }
 
-    impl State {
-        #[inline]
-        pub fn delta(&self, c: u8) -> Option<usize> {
-            //self.transitions.iter().position(|x| x.0 == c);
+    //check whether current state has outgoing transitions
+    #[inline]
+    pub fn has_children(&self) -> bool {
+        !(self.transitions.is_empty())
+    }
 
-            let transition = self
-                .transitions
-                .iter()
-                .find(|(transition_char, _)| *transition_char == c);
-
-            //return Some(transition?.1);
-            return transition.map(|(_, next_state)| *next_state);
+    //get last child of current state
+    //last is based on lexicographic order
+    #[inline]
+    pub fn last_child(&self) -> Option<usize> {
+        match self.transitions.last() {
+            Some((_, child_state)) => Some(*child_state),
+            None => None,
         }
+        //match self.transitions.last_key_value() {
+        //    Some((_, next_state)) => Some(*next_state),
+        //    None => None,
+        //}
+    }
 
-        //check whether current state has outgoing transitions
-        #[inline]
-        pub fn has_children(&self) -> bool {
-            !(self.transitions.is_empty())
-        }
+    #[inline]
+    pub fn add_transition(&mut self, y: u8, new_state_id: usize) {
+        //assert!(self.id < new_state_id);
+        self.transitions.push((y, new_state_id));
+        assert!(self.transitions.len() > 0);
+    }
 
-        //get last child of current state
-        //last is based on lexicographic order
-        #[inline]
-        pub fn last_child(&self) -> Option<usize> {
-            match self.transitions.last() {
-                Some((_, child_state)) => Some(*child_state),
-                None => None,
-            }
-            //match self.transitions.last_key_value() {
-            //    Some((_, next_state)) => Some(*next_state),
-            //    None => None,
-            //}
-        }
-
-        #[inline]
-        pub fn add_transition(&mut self, y: u8, new_state_id: usize) {
-            //assert!(self.id < new_state_id);
-            self.transitions.push((y, new_state_id));
-            assert!(self.transitions.len() > 0);
-        }
-
-        //are both states in the same equivalence class
-        pub fn is_equal(&self, other_state: &State) -> bool {
-            if self.is_final != other_state.is_final {
-                return false;
-            }
-
-            match self.transitions.len() != other_state.transitions.len() {
-                true => return false,
-                false => (),
-            }
-
-            let self_transitions = &self.transitions;
-            let other_state_transitions = &other_state.transitions;
-
-            //actually check transitions
-            //compare char of transition 1 with char of transition 2
-            //same thing with destination states
-            let all_transitions_equal = self_transitions.iter().zip(other_state_transitions).all(
-                |((char1, state1), (char2, state2))| (*char1 == *char2) && (*state1 == *state2),
-            );
-
-            return all_transitions_equal;
-        }
-
-        #[inline]
-        pub fn merge_with(&mut self, other_state: usize) -> bool {
-            if let Some(transition) = self.transitions.last_mut() {
-                //field 1 is next state
-                transition.1 = other_state;
-                return true;
-            }
-
+    //are both states in the same equivalence class
+    pub fn is_equal(&self, other_state: &State) -> bool {
+        if self.is_final != other_state.is_final {
             return false;
         }
+
+        match self.transitions.len() != other_state.transitions.len() {
+            true => return false,
+            false => (),
+        }
+
+        let self_transitions = &self.transitions;
+        let other_state_transitions = &other_state.transitions;
+
+        //actually check transitions
+        //compare char of transition 1 with char of transition 2
+        //same thing with destination states
+        let all_transitions_equal = self_transitions
+            .iter()
+            .zip(other_state_transitions)
+            .all(|((char1, state1), (char2, state2))| (*char1 == *char2) && (*state1 == *state2));
+
+        return all_transitions_equal;
+    }
+
+    #[inline]
+    pub fn merge_with(&mut self, other_state: usize) -> bool {
+        if let Some(transition) = self.transitions.last_mut() {
+            //field 1 is next state
+            transition.1 = other_state;
+            return true;
+        }
+
+        return false;
     }
 }
 
 #[derive(Debug)]
 pub struct Automata {
-    states: Vec<crate::fsa::automata_state::State>,
+    states: Vec<State>,
     last_str: [u8; 100],
     last_str_len: usize,
     register: Register,
-}
-
-//must always be a power of 2
-const REGISTER_CAPACITY: usize = 512;
-const REGISTER_COUNT_MASK: usize = REGISTER_CAPACITY - 1;
-
-//array of frozen states (their identifiers)
-#[derive(Debug)]
-struct Register {
-    elements: [usize; REGISTER_CAPACITY],
-    count: usize,
 }
 
 //strings are supposed to sorted
@@ -364,15 +353,5 @@ impl Automata {
     #[inline]
     fn clear_last_str(&mut self) {
         self.last_str[0..self.last_str_len].fill(0);
-    }
-}
-
-impl Register {
-    //TODO get rid of mod
-    #[inline]
-    fn add_state(&mut self, state_id: usize) {
-        let i = self.count % REGISTER_CAPACITY;
-        self.elements[i] = state_id;
-        self.count += 1;
     }
 }

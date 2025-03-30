@@ -1,140 +1,166 @@
-use crate::fst_state::FstState;
+use crate::{
+    automaton::AutomatonState,
+    fst_state::FstState,
+    fst_state::common_prefix_index,
+    register::Register,
+    register::{REGISTER_CAPACITY, REGISTER_COUNT_MASK},
+};
 use core::result::Result;
-
-#[derive(Debug)]
-pub struct Dictionary {
-    fst_states: Vec<usize>,
-}
-
-//TODO should also use outputs?
-//are both states in the same equivalence class
-impl PartialEq for FstState {
-    fn eq(&self, other_state: &Self) -> bool {
-        if self.is_final != other_state.is_final {
-            return false;
-        }
-
-        match self.transitions.len() != other_state.transitions.len() {
-            true => return false,
-            false => (),
-        }
-
-        let self_transitions = &self.transitions;
-        let other_state_transitions = &other_state.transitions;
-
-        //actually check transitions
-        //compare char of transition 1 with char of transition 2
-        //same thing with destination states
-        let all_transitions_equal = self_transitions
-            .iter()
-            .zip(other_state_transitions)
-            .all(|((char1, state1), (char2, state2))| (*char1 == *char2) && (*state1 == *state2));
-
-        return all_transitions_equal;
-    }
-}
-
-impl Eq for FstState {}
-
-/*
-*
-*
-* Dictionary
-*
-*
-*
-*/
-
-impl Dictionary {
-    //new dict with capacity
-    fn new() -> Self {
-        Dictionary {
-            fst_states: Vec::with_capacity(128),
-        }
-    }
-}
-//
-//    fn is_member(&self, state: &State) -> Option<&State>{
-//        let equivalent_state = self.fst_states.get
-//    }
-//
-//    //start tracking state
-//    //TODO make it circular
-//    //right now it's size keeps increasing
-//    fn insert(&mut self, state: usize) {
-//        self.fst_states.insert(state);
-//    }
-//}
-
-/*
-*
-*
-* Transducer
-*
-*
-*
-*/
+use std::fs::File;
+use std::io;
+use std::io::Write;
 
 #[derive(Debug)]
 pub struct Transducer {
     states: Vec<FstState>,
-    last_str: [u8; 100],
-    last_str_len: usize,
+    last_key: [u8; 100],
+    last_key_len: usize,
+    last_value: [u8; 100],
+    last_value_len: usize,
     //cache: Dictionary,
-    cache: Vec<usize>,
+    register: Register,
 }
 
 impl Transducer {
     fn new() -> Self {
         Transducer {
             states: Vec::with_capacity(128),
-            last_str: [0; 100],
-            last_str_len: 0,
-            cache: Vec::with_capacity(128),
+            last_key: [0; 100],
+            last_key_len: 0,
+            last_value: [0; 100],
+            last_value_len: 0,
+            register: Register {
+                elements: [0; REGISTER_CAPACITY],
+                count: 0,
+            },
         }
     }
 
     fn push_zinit_state(&mut self) {
         self.states.push(FstState {
             is_final: false,
-            transitions: Vec::with_capacity(10),
-            outputs: Vec::with_capacity(10),
-            state_output: FstStateOutput::None,
+            transitions: Vec::new(),
+            outputs: Vec::new(),
         });
     }
 
-    //get the index of the last prefix character inside y
-    pub fn common_prefix(&self, y: &str) -> usize {
-        let y_bytes = y.as_bytes();
-
-        //TODO SIMD it using chunk_exact
-        let prefix_len = self
-            .last_str
-            .iter()
-            .zip(y_bytes)
-            .take_while(|(x, y)| x == y)
-            .count();
-
-        assert!(prefix_len <= y.len());
-        return prefix_len;
+    pub fn is_final_state(&self, state: usize) -> bool {
+        self.states
+            .get(state)
+            .expect("no state with index: {state}")
+            .is_final
     }
 
-    /*
-     * TODO
-     * this function and insert_in_cache should be methods of dictionary.
-     * they are here for simplicity right now
-     *
-     */
-    //check whether state of index `state` is has an equivalent one in cache
-    //if so return it
-    fn is_cached(&mut self, state: usize) -> Option<usize> {
-        assert!(state < self.states.len());
-        let other_state = &self.states[state];
+    pub fn delta_star(&self, state: usize, input_tape: &[u8]) -> Option<usize> {
+        assert!(self.states.len() > 0);
+        let mut current_state = state;
 
-        for cached_state_index in self.cache.iter() {
-            let cached_state = &self.states[*cached_state_index];
+        for byte in input_tape.iter() {
+            if let Some(new_state) = self.states[current_state].delta(*byte) {
+                //move to new state
+                assert!(current_state != new_state);
+                current_state = new_state;
+            } else {
+                return None;
+            }
+        }
 
-            if cached_state.eq(other_state) {
+        return Some(current_state);
+    }
+
+    #[inline]
+    pub fn delta_star_from_initial_state(&self, input_tape: &[u8]) -> Option<usize> {
+        self.delta_star(0, input_tape)
+    }
+
+    //start keeping track of suffix y in the fsa
+    //new states will originate from `last_state`
+    //a suffix = "" will do nothing
+    pub fn add_suffix_to_fsa(&mut self, from_state: usize, y: &[u8]) {
+        assert!(y.len() <= 100);
+
+        let string_len = y.len();
+
+        let initial_number_of_states = self.states.len();
+
+        let mut current_state = from_state;
+
+        for (i, byte) in y.iter().enumerate() {
+            //get the current state and add a new transition to it
+            let new_state_id = self.states.len();
+
+            self.states[current_state].add_transition(*byte, new_state_id);
+
+            //if last loop iteration the state is to be marked as final
+            let is_state_final = i == string_len - 1;
+
+            let new_state: FstState = FstState {
+                is_final: is_state_final,
+                transitions: Vec::new(),
+                outputs: Vec::new(),
+            };
+
+            assert!(new_state.transitions.is_empty());
+            self.states.push(new_state);
+
+            current_state = new_state_id;
+        }
+
+        assert!(initial_number_of_states <= self.states.len());
+    }
+
+    //assume state has children
+    pub fn replace_or_register(&mut self, state_index: usize) {
+        let state = &self.states[state_index];
+        assert!(state.has_children());
+
+        //get the state `id` of the last outgoing transition from current state
+        let child_index = state.last_child().unwrap();
+
+        //println!("last child index is {}", child_index);
+
+        if self.state_has_children(child_index) {
+            self.replace_or_register(child_index);
+        }
+
+        //merge states added by previous add_suffix_to_fsa that are equivalent to the ones in the register
+        if let Some(state_to_merge_with) = self.register_contains_equivalent(child_index) {
+            //
+            //now get a mutable reference to the state who's child is to be merged
+            let current_state = &mut self.states[state_index];
+
+            //merge last child
+            current_state.merge_with(state_to_merge_with);
+
+            self.states.pop();
+        } else {
+            self.register.add_state(child_index);
+        }
+    }
+
+    fn register_contains_equivalent(&self, state_index: usize) -> Option<usize> {
+        let cached_states = &self.register.elements;
+
+        let state = &self.states[state_index];
+
+        let register_len: usize = self.register.count & REGISTER_COUNT_MASK;
+
+        for i in 0..register_len {
+            let cached_state_index = cached_states.get(i).expect(&format!(
+                "last word was {}, state_index is {state_index}.\nnumber of cached states: {}, accessing index {} of register",
+                &std::str::from_utf8(&self.last_key[0..self.last_key_len]).unwrap(), self.register.count, i
+            ));
+
+            let cached_state = &self.states.get(*cached_state_index).expect(&format!(
+                "last word was {}, state_index is {state_index}.\nnumber of cached states: {}, accessed index {} of register and got state {}\nnumber of states in fsa is {}",
+                &std::str::from_utf8(&self.last_key[0..self.last_key_len]).unwrap(),
+                self.register.count,
+                i,
+                *cached_state_index,
+                self.states.len()
+            ));
+
+            if state.eq(cached_state) {
                 return Some(*cached_state_index);
             }
         }
@@ -142,188 +168,307 @@ impl Transducer {
         return None;
     }
 
-    fn insert_in_cache(&mut self, state: usize) {
-        assert!(state < self.states.len());
-        self.cache.push(state);
+    fn state_has_children(&self, state_index: usize) -> bool {
+        return self.states[state_index].has_children();
     }
-    /*
-     * TODO END of functions that should be moved
-     */
 
-    //return an equivalent state from the cache
-    //if not present push it to the dictionary
-    fn find_minimized(&mut self, state_index: usize) -> usize {
-        assert!(state_index < self.states.len());
+    #[inline]
+    fn clear_last_key(&mut self) {
+        self.last_key[0..self.last_key_len].fill(0);
+    }
 
-        match self.is_cached(state_index) {
-            Some(equivalent_state_index) => return equivalent_state_index,
-            None => {
-                self.insert_in_cache(state_index);
-                return state_index;
+    //return the index of the first state (starting from 0) which has some value on last output
+    //stop and return none if last_state is reached
+    fn first_output_on_path_to(&self, last_state: usize) -> Option<usize> {
+        let mut current_state = 0;
+
+        //keep going until last_state is reached
+        while current_state != last_state {
+            //get reference to current state
+            let tmp = self
+                .states
+                .get(current_state)
+                .expect("states {current_state} out of bounds.");
+
+            //if state has children then it must have outgoing transitions and possibly output
+            //values associated with them
+            if tmp.has_children() {
+                let last_output = tmp.get_last_output();
+
+                //if no output on last transition => continue searching on `last path`
+                if last_output == None {
+                    current_state = tmp.last_child().expect(
+                        "state {current_state} expected to have child but didn't found one.",
+                    );
+                    continue;
+                }
+                //transition has output
+                //stop there
+                else {
+                    return Some(current_state);
+                }
+            //state doesn't have children
+            } else {
+                panic!(
+                    "state {current_state} doesn't have children but is ancestor of {last_state}"
+                );
             }
         }
+
+        return None;
     }
 
-    //check current word against previous word by comparing each byte
-    fn is_word_equal_to_previous(&self, current_word: &[u8]) -> bool {
-        if self.last_str[0] == 0 {
-            assert!(self.last_str_len == 0);
+    /*
+     *insert value in the fst. last_state_index is the index of the last state reachable by invoking
+     *delta* on prefix of key
+     *
+     * First walk the path from initial state to last_state. If no output is found then adding the value is as simple as
+     * Taking the last outgoing transition from last_state and setting it's output to value
+     *
+     * In some cases the path from q0 to last_state already contains some output that may (or may not) share
+     * a prefix with value => in that case only the common prefix should be kept. The rest must be
+     * propagated forward to all transitions (but the last one) of last_state.
+     */
+    fn insert_value(&mut self, value: &[u8], last_state_index: usize) {
+        assert!(value.len() > 0);
+
+        if self.states[last_state_index].is_final {
+            todo!();
         }
 
-        //lengths do not match
-        if self.last_str_len != current_word.len() {
-            return false;
+        //output value present in the given path
+        if let Some(first_state_with_output) = self.first_output_on_path_to(last_state_index) {
+            //find the common prefix and diff between current value and the output on the just found
+            //state
+            let state = &self.states[first_state_with_output];
+
+            let prefix_len = state.find_new_prefix_len(&value);
+            println!("prefix len (of value) is: {prefix_len}");
+
+            //set output prefix as new output for first_state_with_output.
+            //also get diff. Note that diff may be None
+            let diff: Option<Vec<u8>>;
+
+            if prefix_len != 0 {
+                let state = &mut self.states[first_state_with_output];
+                diff = state.truncate_last_output(prefix_len);
+            } else {
+                let state = &mut self.states[first_state_with_output];
+                diff = Some(state.clear_last_output());
+                println!("called clear on last_output\nstate is now: {:?}", state);
+            }
+
+            println!("diff is: {:?}", diff);
+            let last_state = &mut self.states[last_state_index];
+            last_state.propagate_new_prefix(diff);
+
+            last_state.set_last_output(&value[prefix_len..]);
         }
-        //same length => can use .zip
-        let previous_word = &self.last_str[0..self.last_str_len];
+        //TODO this is a bit weird
+        //maybe move it in the `then` branch
+        //
+        //new value with no prefix on path
+        //should just add the entire value to the last output of last_state
+        else {
+            let last_state = &mut self.states[last_state_index];
+            last_state.set_last_output(&value);
+            println!("in else: last state is {:?}", last_state);
+        }
+    }
 
-        //check for equality between slices of u8
-        let res = previous_word
-            .iter()
-            .zip(current_word)
-            .all(|(x, y)| *x == *y);
+    /*
+     * replace current key `last_key` with `new_key`
+     * the array should first be filled with 0s
+     */
+    fn update_last_key(&mut self, new_key: &[u8]) {
+        let word_len = new_key.len();
+        self.clear_last_key();
 
-        return res;
+        self.last_key_len = word_len;
+        self.last_key[..word_len].copy_from_slice(&new_key[..word_len]);
     }
 }
 
-fn init_temp_states(temp_states: &mut Vec<FstState>) {
-    for i in 0..N_TEMP_STATES {
-        temp_states.push(FstState {
-            is_final: false,
-            transitions: Vec::new(),
-            outputs: Vec::new(),
-            state_output: FstStateOutput::None,
-        });
-    }
-}
-
-//initialize tail states for the current word
-fn init_tail_states(temp_states: &mut [FstState], current_word: &[u8], prefix_len_plus_1: usize) {
-    let i = prefix_len_plus_1;
-
-    assert!(i <= temp_states.len());
-    assert!(current_word.len() <= temp_states.len());
-
-    let word_len = current_word.len();
-
-    for i in prefix_len_plus_1..word_len + 1 {
-        assert!(i > 0);
-        let state = &mut temp_states[i - 1];
-
-        state.clear_state();
-
-        let current_char: u8 = current_word[i - 1];
-        state.add_transition(current_char, i);
-    }
-}
-
-const N_TEMP_STATES: usize = 256;
 pub enum FstError {}
 
 pub fn build_transducer_from_collection(
-    collection: Vec<(String, String)>,
+    collection: Vec<(Vec<u8>, Vec<u8>)>,
 ) -> Result<Transducer, FstError> {
     assert!(collection.len() > 0);
 
     let mut transducer = Transducer::new();
-    //TODO should be fixed size?
-    let mut temp_states: Vec<FstState> = Vec::with_capacity(N_TEMP_STATES);
-    init_temp_states(&mut temp_states);
 
-    assert_eq!(temp_states[0].is_final, false);
-    let initial_state = 0;
-
-    //let mut previous_str = "";
+    let mut previous_key_i = 0;
 
     transducer.push_zinit_state();
 
     assert_eq!(transducer.states.len(), 1);
 
-    for key_value_pair in collection.iter() {
+    for (i, key_value_pair) in collection.iter().enumerate() {
         let (key, value) = key_value_pair;
 
-        let i: usize = 1;
+        //key common prefix len
+        let prefix_len = common_prefix_index(&transducer.last_key, &key);
 
-        //len of common prefix
-        //
-        let prefix_len = transducer.common_prefix(&key);
+        //key common prefix
         let prefix = &key[0..prefix_len];
 
-        //TODO
-        //minimize states from the suffix of previous word
-        assert!(prefix_len <= transducer.last_str_len);
-        let previous_suffix = &transducer.last_str[prefix_len..transducer.last_str_len];
+        //compute delta* from initial state with the common prefix as input.
+        //The reached state will be the one after which the suffix will be added.
+        //Since the dataset is ordered, no other word will "touch" states that come after last_state.
+        let last_state_index = transducer
+            .delta_star_from_initial_state(prefix)
+            .expect(&format!("transitioned to err state after checking common prefix!\nWas processing {:?} and common prefix was {:?}.\nLast str is: {:?}", std::str::from_utf8(key).unwrap(), std::str::from_utf8(prefix).unwrap(), std::str::from_utf8(&collection[previous_key_i].0).unwrap()));
 
-        //iter through each byte (in reverse)
-        //should also have `i`
-        for _byte in previous_suffix.iter().rev() {
-            //TODO set transition temp_states
+        assert!(last_state_index < transducer.states.len());
+
+        let last_state = &transducer.states[last_state_index];
+        if last_state.has_children() {
+            transducer.replace_or_register(last_state_index);
         }
 
-        //initialize tail states for current word
-        let key_as_bytes = key.as_bytes();
-        let prefix_len_plus_one = prefix_len + 1;
-        init_tail_states(&mut temp_states, key_as_bytes, prefix_len_plus_one);
+        let suffix = &key[prefix_len..];
+        transducer.add_suffix_to_fsa(last_state_index, suffix);
 
-        //current word is different from the previous one
-        //new states must be added for the suffix of the new word
-        if !transducer.is_word_equal_to_previous(key_as_bytes) {
-            let last_state_index = key_as_bytes.len();
-            let final_tail_state = &temp_states[last_state_index];
-            assert_eq!(final_tail_state.has_children(), false);
+        //insert current value associated with current key in the fst
+        transducer.insert_value(&value, last_state_index);
+
+        transducer.update_last_key(key);
+
+        previous_key_i = i;
+    }
+
+    transducer.replace_or_register(0);
+
+    return Ok(transducer);
+}
+
+pub fn dump_graph(fst: &Transducer, file_path: &str) -> io::Result<()> {
+    let mut file = File::create(file_path)?;
+
+    file.write(b"digraph DFA {")?;
+    file.write(b"    {0} [shape=circle, color=blue, label=\"start\"];")?;
+
+    //mark the accepting states
+    for (i, state) in fst.states.iter().enumerate() {
+        if state.is_final {
+            let s = format!("    {} [shape=doublecircle, color=green];", i);
+            file.write(s.as_bytes())?;
         }
     }
 
-    return Ok(transducer);
+    //add transitions
+    for (i, state) in fst.states.iter().enumerate() {
+        let state_transitions = &state.transitions;
+        let state_outputs = &state.outputs;
+
+        println!("state {i}");
+
+        assert!(state_transitions.len() >= state_outputs.len());
+        for (transition, output) in state_transitions.iter().zip(state_outputs) {
+            let (on_char, to_state) = transition;
+
+            let label: String;
+            if let Some(value) = output {
+                label = format!(
+                    "{}: {}",
+                    *on_char as char,
+                    std::str::from_utf8(value).unwrap()
+                );
+            } else {
+                label = format!("{}", *on_char as char);
+            }
+            let s = format!("    {} -> {} [label=\"{}\"];", i, *to_state, label);
+            file.write(s.as_bytes())?;
+        }
+    }
+
+    file.write(b"}")?;
+
+    Ok(())
 }
 
 #[allow(unused)]
 #[cfg(test)]
 mod fst_unit_tests {
 
-    use crate::fst::FstStateOutput;
-    use crate::fst::init_tail_states;
-    use crate::fst::{FstState, N_TEMP_STATES};
+    use crate::fst_state::FstState;
+    use crate::fst_state::FstStateOutput;
+
+    use super::build_transducer_from_collection;
+    use super::dump_graph;
 
     #[test]
-    fn init_tail_states_normal() {
-        let mut temp_states: Vec<FstState> = Vec::with_capacity(N_TEMP_STATES);
-        for i in 0..N_TEMP_STATES {
-            temp_states.push(FstState {
-                is_final: false,
-                transitions: Vec::new(),
-                outputs: Vec::new(),
-                state_output: FstStateOutput::None,
-            });
-        }
+    fn two_pairs() {
+        let first_pair = (
+            String::from("ciao").as_bytes().to_vec(),
+            String::from("rat").as_bytes().to_vec(),
+        );
 
-        let test_string = b"topo";
-        init_tail_states(&mut temp_states, test_string, 1);
+        let second_pair = (
+            String::from("colle").as_bytes().to_vec(),
+            String::from("ratto").as_bytes().to_vec(),
+        );
 
-        for i in 0..test_string.len() {
-            assert!(&temp_states[i].has_children());
-            assert!(temp_states[i].transitions[0] == (test_string[i], i + 1));
-            //println!("{:?}", temp_states[i]);
-        }
+        let collection = vec![first_pair, second_pair];
+
+        let Ok(fst) = build_transducer_from_collection(collection);
+
+        //dump_graph(&fst, "fst.dot");
     }
 
     #[test]
-    fn init_tail_states_empty() {
-        let mut temp_states: Vec<FstState> = Vec::with_capacity(N_TEMP_STATES);
-        for i in 0..N_TEMP_STATES {
-            temp_states.push(FstState {
-                is_final: false,
-                transitions: Vec::new(),
-                outputs: Vec::new(),
-                state_output: FstStateOutput::None,
-            });
-        }
+    fn three_pairs() {
+        println!("-----------------------------\n\n");
+        let first_pair = (
+            String::from("ciao").as_bytes().to_vec(),
+            String::from("rat").as_bytes().to_vec(),
+        );
 
-        let test_string = b"";
-        init_tail_states(&mut temp_states, test_string, 1);
+        let second_pair = (
+            String::from("colle").as_bytes().to_vec(),
+            String::from("ratto").as_bytes().to_vec(),
+        );
 
-        assert!(!temp_states[0].has_children());
-        assert!(!temp_states[1].has_children());
+        let third_pair = (
+            String::from("pizza").as_bytes().to_vec(),
+            String::from("zappa").as_bytes().to_vec(),
+        );
+
+        let collection = vec![first_pair, second_pair, third_pair];
+
+        let Ok(fst) = build_transducer_from_collection(collection);
+
+        //dump_graph(&fst, "fst.dot");
+    }
+
+    #[test]
+    fn four_pairs() {
+        println!("-----------------------------\n\n");
+        let first_pair = (
+            String::from("ciao").as_bytes().to_vec(),
+            String::from("rat").as_bytes().to_vec(),
+        );
+
+        let second_pair = (
+            String::from("ciaspola").as_bytes().to_vec(),
+            String::from("ratto").as_bytes().to_vec(),
+        );
+
+        let third_pair = (
+            String::from("come").as_bytes().to_vec(),
+            String::from("ronda").as_bytes().to_vec(),
+        );
+
+        let third_pair = (
+            String::from("zoccolo").as_bytes().to_vec(),
+            String::from("picciotto").as_bytes().to_vec(),
+        );
+
+        let collection = vec![first_pair, second_pair, third_pair];
+
+        let Ok(fst) = build_transducer_from_collection(collection);
+
+        dump_graph(&fst, "fst.dot");
     }
 }

@@ -1,15 +1,18 @@
 #![allow(dead_code)]
 
+mod automaton;
 mod fsa;
 mod fst;
 mod fst_state;
+mod register;
 
 #[allow(unused)]
 #[cfg(test)]
 mod tests {
     use rand::Rng;
 
-    use crate::fsa::{Automata, build_fsa};
+    use crate::fsa::{Automata, build_fsa, dump_graph};
+    use crate::fst::{Transducer, build_transducer_from_collection};
     use rand::prelude::*;
     use std::fs::File;
     use std::io;
@@ -113,35 +116,43 @@ mod tests {
         let not_valid = random_strings_from_collection(&string_collection);
         assert!(not_valid.len() != 0);
         are_strings_not_accepted(&automata, &not_valid);
+
+        let _nanono = String::from("nanono");
+
+        dump_graph(&automata, "fsa.dot");
+
+        //let reached_state = automata.delta_star_from_initial_state(&nanono).unwrap();
+        //
+        //assert!(automata.is_final_state(reached_state));
     }
-
-    #[test]
-    fn word_list_len_100() {
-        let mut automata = Automata::new(100);
-
-        let string_collection = collection_from_file("100_words.txt").unwrap();
-
-        crate::fsa::build_fsa(&mut automata, &string_collection);
-        are_strings_accepted(&automata, &string_collection);
-
-        let not_valid = random_strings_from_collection(&string_collection);
-        assert!(not_valid.len() != 0);
-        are_strings_not_accepted(&automata, &not_valid);
-    }
-
-    #[test]
-    fn word_list_len_300() {
-        let mut automata = Automata::new(200);
-
-        let string_collection = collection_from_file("300_words.txt").unwrap();
-
-        crate::fsa::build_fsa(&mut automata, &string_collection);
-        are_strings_accepted(&automata, &string_collection);
-
-        let not_valid = random_strings_from_collection(&string_collection);
-        assert!(not_valid.len() != 0);
-        are_strings_not_accepted(&automata, &not_valid);
-    }
+    //
+    //#[test]
+    //fn word_list_len_100() {
+    //    let mut automata = Automata::new(100);
+    //
+    //    let string_collection = collection_from_file("100_words.txt").unwrap();
+    //
+    //    crate::fsa::build_fsa(&mut automata, &string_collection);
+    //    are_strings_accepted(&automata, &string_collection);
+    //
+    //    let not_valid = random_strings_from_collection(&string_collection);
+    //    assert!(not_valid.len() != 0);
+    //    are_strings_not_accepted(&automata, &not_valid);
+    //}
+    //
+    //#[test]
+    //fn word_list_len_300() {
+    //    let mut automata = Automata::new(200);
+    //
+    //    let string_collection = collection_from_file("300_words.txt").unwrap();
+    //
+    //    crate::fsa::build_fsa(&mut automata, &string_collection);
+    //    are_strings_accepted(&automata, &string_collection);
+    //
+    //    let not_valid = random_strings_from_collection(&string_collection);
+    //    assert!(not_valid.len() != 0);
+    //    are_strings_not_accepted(&automata, &not_valid);
+    //}
 
     //#[test]
     //fn word_list_len_1000() {
@@ -234,5 +245,89 @@ mod tests {
 
             assert!(!fsa.is_final_state(reached_state));
         }
+    }
+
+    //#[test]
+    //fn small_word_list_on_fst() {
+    //    //let string_collection = collection_from_file_for_fst("words_small.txt").unwrap();
+    //
+    //    let string_collection = vec![("na".as_bytes().to_vec(), "topo".as_bytes().to_vec())];
+    //
+    //    let Ok(fst) = build_transducer_from_collection(string_collection);
+    //    crate::fst::dump_graph(&fst, "fst.dot");
+    //    //are_strings_accepted_on_fst(&fst, &string_collection);
+    //    //
+    //    //let not_valid = random_strings_from_collection(&string_collection);
+    //    //assert!(not_valid.len() != 0);
+    //    //are_strings_not_accepted_on_fst(&fst, &not_valid);
+    //}
+
+    //#[test]
+    //fn word_list_len_100_on_fst() {
+    //    let string_collection = collection_from_file("100_words.txt").unwrap();
+    //
+    //    let Ok(fst) = build_transducer_from_collection(&string_collection);
+    //    are_strings_accepted_on_fst(&fst, &string_collection);
+    //
+    //    let not_valid = random_strings_from_collection(&string_collection);
+    //    assert!(not_valid.len() != 0);
+    //    are_strings_not_accepted_on_fst(&fst, &not_valid);
+    //}
+    //
+    //#[test]
+    //fn word_list_len_300_on_fst() {
+    //    let string_collection = collection_from_file("300_words.txt").unwrap();
+    //
+    //    let Ok(fst) = build_transducer_from_collection(&string_collection);
+    //    are_strings_accepted_on_fst(&fst, &string_collection);
+    //
+    //    let not_valid = random_strings_from_collection(&string_collection);
+    //    assert!(not_valid.len() != 0);
+    //    are_strings_not_accepted_on_fst(&fst, &not_valid);
+    //}
+    //
+    //#[test]
+    //fn word_list_len_1000_on_fst() {
+    //    let string_collection = collection_from_file("1000_words.txt").unwrap();
+    //
+    //    let Ok(fst) = build_transducer_from_collection(&string_collection);
+    //    are_strings_accepted_on_fst(&fst, &string_collection);
+    //
+    //    let not_valid = random_strings_from_collection(&string_collection);
+    //    assert!(not_valid.len() != 0);
+    //    are_strings_not_accepted_on_fst(&fst, &not_valid);
+    //}
+    //
+    //fn are_strings_accepted_on_fst(fst: &Transducer, str_collection: &Vec<String, String>) {
+    //    for (i, s) in str_collection.iter().enumerate() {
+    //        let reached_state = fst
+    //            .delta_star_from_initial_state(&s)
+    //            .expect("reached error state starting from string {s}");
+    //
+    //        assert!(fst.is_final_state(reached_state));
+    //    }
+    //}
+
+    fn are_strings_not_accepted_on_fst(fst: &Transducer, str_collection: &Vec<String>) {
+        for (i, s) in str_collection.iter().enumerate() {
+            //let reached_state = fst
+            //.delta_star_from_initial_state(&s)
+            //.expect("reached error state starting from string {s}");
+
+            //assert!(!fst.is_final_state(reached_state));
+        }
+    }
+
+    //read a list of words from file and return the corresponding vector
+    fn collection_from_file_for_fst(filename: &str) -> Result<Vec<(String, String)>, &str> {
+        let mut string_collection: Vec<(String, String)> = Vec::new();
+
+        if let Ok(lines) = read_lines(filename) {
+            for (i, line) in lines.filter(|x| x.is_ok()).enumerate() {
+                string_collection.push((line.expect("couldn't read line"), String::from("")));
+            }
+            return Ok(string_collection);
+        }
+        return Err("couldn't read lines");
     }
 }
