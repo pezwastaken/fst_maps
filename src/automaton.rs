@@ -3,7 +3,7 @@ pub trait Automaton {
     fn delta_star(&self, state: usize, input_tape: &[u8]) -> Option<usize>;
     fn delta_star_with_output(&self, state: usize, input_tape: &[u8]) -> Option<usize>;
 
-    fn state_has_children(&self, state_index: usize) -> bool;
+    fn is_final_state(&self, state: usize) -> bool;
 }
 
 pub trait AutomatonState {

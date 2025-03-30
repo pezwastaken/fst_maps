@@ -3,6 +3,7 @@
 mod automaton;
 mod fsa;
 mod fst;
+mod fst_builder;
 mod fst_state;
 mod register;
 
@@ -11,8 +12,9 @@ mod register;
 mod tests {
     use rand::Rng;
 
-    use crate::fsa::{Automata, build_fsa, dump_graph};
-    use crate::fst::{Transducer, build_transducer_from_collection};
+    use crate::fsa::{Automata, build_fsa, dump_graph as fsa_dump_graph};
+    use crate::fst::Transducer;
+    use crate::fst_builder::{build_transducer_from_collection, dump_graph as fst_dump_graph};
     use rand::prelude::*;
     use std::fs::File;
     use std::io;
@@ -119,7 +121,7 @@ mod tests {
 
         let _nanono = String::from("nanono");
 
-        dump_graph(&automata, "fsa.dot");
+        fsa_dump_graph(&automata, "fsa.dot");
 
         //let reached_state = automata.delta_star_from_initial_state(&nanono).unwrap();
         //
