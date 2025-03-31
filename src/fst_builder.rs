@@ -107,7 +107,7 @@ pub fn dump_graph(fst: &Transducer, file_path: &str) -> io::Result<()> {
 
 #[allow(unused)]
 #[cfg(test)]
-mod fst_unit_tests {
+mod fst_builder_tests {
 
     use crate::fst_state::FstState;
     use crate::fst_state::FstStateOutput;
@@ -177,12 +177,12 @@ mod fst_unit_tests {
             String::from("ronda").as_bytes().to_vec(),
         );
 
-        let third_pair = (
+        let fourth_pair = (
             String::from("zoccolo").as_bytes().to_vec(),
             String::from("picciotto").as_bytes().to_vec(),
         );
 
-        let collection = vec![first_pair, second_pair, third_pair];
+        let collection = vec![first_pair, second_pair, third_pair, fourth_pair];
 
         let Ok(fst) = build_transducer_from_collection(collection);
 

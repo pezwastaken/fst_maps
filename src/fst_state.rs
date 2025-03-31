@@ -1,12 +1,24 @@
 use crate::automaton::AutomatonState;
 
 #[derive(Hash, Debug)]
-
-pub enum FstStateOutput {
-    None,
-    SetOfStrings(String),
-}
-
+//pub struct TransitionOutput {
+//    value: Option<Vec<u8>>,
+//    subtract: usize,
+//}
+//
+//impl TransitionOutput {
+//    pub fn has_value(&self) -> bool {
+//        return self.value.is_some();
+//    }
+//
+//    pub fn get_value(&self) -> Option<&Vec<u8>> {
+//        return self.value.as_ref();
+//    }
+//
+//    pub fn get_subtract(&self) -> usize {
+//        return self.subtract;
+//    }
+//}
 #[derive(Debug, Hash)]
 pub struct FstState {
     //id: usize,
@@ -15,7 +27,8 @@ pub struct FstState {
     //these two fields are "linked" together to model a transition of the transducer.
     //outputs[i] is the output associated to transition `i` of current state
     pub transitions: Vec<(u8, usize)>,
-    pub outputs: Vec<Option<Vec<u8>>>,
+    //pub outputs: Vec<Option<Vec<u8>>>,
+    pub outputs: Vec<TransitionOutput>,
 }
 
 impl FstState {
@@ -132,7 +145,7 @@ impl FstState {
                 Some(out) => {
                     let len_before_insert = out.len();
                     out.splice(..0, new_prefix.iter().cloned());
-                    assert!(len_before_insert < out.len());
+                    assert_ne!(len_before_insert, out.len());
                 }
                 //if output edge is None then just copy the new prefix into it
                 None => {
@@ -340,10 +353,11 @@ mod fst_state_unit_tests {
 
         state.propagate_new_prefix(&Some("ratto ".as_bytes().to_vec()));
 
-        assert!(state.get_last_output().unwrap().len() == 5);
         let output = state.outputs[0].as_ref().unwrap();
         assert_eq!(output, "ratto ciao".as_bytes());
         let output = state.outputs[1].as_ref().unwrap();
         assert_eq!(output, "ratto topo".as_bytes());
+        let output = state.outputs[2].as_ref().unwrap();
+        assert_eq!(output, "ratto pizza".as_bytes());
     }
 }

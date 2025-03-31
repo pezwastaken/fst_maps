@@ -199,32 +199,18 @@ impl Transducer {
 
         //not sufficent. You may have to use subtraction on values even though the suffix doesn't
         //start from a final state.
-        //if self.states[last_state_index].is_final {
-        //    todo!();
-        //}
+        if self.states[last_state_index].is_final {
+            todo!();
+        }
 
         //output value present in the given path
         if let Some(first_state_with_output) = self.first_output_on_path_to(last_state_index) {
             //
-            //get output of first_state
-            //let first_state = &self.states[first_state_with_output];
-            //let state_output = first_state.get_last_output().unwrap();
-            //
-            ////find common prefix between output and value
-            //let prefix_len = common_prefix_index(state_output, value);
-            //
-            //let first_state = &mut self.states[first_state_with_output];
-            //
-            ////also find the diff (relative to the state output)
-            //let diff = first_state.truncate_last_output(prefix_len);
-            //
-            ////get next child
-            //let next_state_index = first_state.last_child().unwrap();
-            //self.diff_propagation(next_state_index, value, diff, last_state_index);
             let output_on_path =
                 self.diff_propagation(first_state_with_output, value, last_state_index);
 
             let prefix_on_path_len = common_prefix_index(&output_on_path, value);
+
             //add value[prefix_len..] to last output of last state
             let last_state = &mut self.states[last_state_index];
             last_state.set_last_output(&value[prefix_on_path_len..]);
@@ -262,7 +248,13 @@ impl Transducer {
             //propagate diff to all outgoing edges. Diff will be prepended to their outputs
             let current_state = &mut self.states[current_state_index];
             assert!(current_state.has_children());
-            current_state.propagate_new_prefix(&diff);
+
+            //propagate diff from previous iteration if and only if the current state is not final.
+            //A final state means that output on previous edges constitutes its total output
+            //Propagating would mean modifying the value associated with that final state (key)
+            if !current_state.is_final {
+                current_state.propagate_new_prefix(&diff);
+            }
 
             //Take last output.
             let current_last_output = current_state.get_last_output();
@@ -273,9 +265,7 @@ impl Transducer {
 
                 let prefix_up_to = common_prefix_index(output, value);
                 diff = current_state.truncate_last_output(prefix_up_to);
-            }
-            //TODO
-            else {
+            } else {
                 diff = None;
             }
 
@@ -348,3 +338,7 @@ impl Automaton for Transducer {
 }
 
 pub enum FstError {}
+
+#[allow(unused)]
+#[cfg(test)]
+mod fst_unit_tests {}
