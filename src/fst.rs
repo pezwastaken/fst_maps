@@ -1,5 +1,3 @@
-use std::os::linux::raw::stat;
-
 use crate::{
     automaton::{Automaton, AutomatonState},
     fst_state::{FstState, common_prefix_index},
@@ -209,26 +207,95 @@ impl Transducer {
         if let Some(first_state_with_output) = self.first_output_on_path_to(last_state_index) {
             //
             //get output of first_state
-            let first_state = &self.states[first_state_with_output];
-            let state_output = first_state.get_last_output().unwrap();
+            //let first_state = &self.states[first_state_with_output];
+            //let state_output = first_state.get_last_output().unwrap();
+            //
+            ////find common prefix between output and value
+            //let prefix_len = common_prefix_index(state_output, value);
+            //
+            //let first_state = &mut self.states[first_state_with_output];
+            //
+            ////also find the diff (relative to the state output)
+            //let diff = first_state.truncate_last_output(prefix_len);
+            //
+            ////get next child
+            //let next_state_index = first_state.last_child().unwrap();
+            //self.diff_propagation(next_state_index, value, diff, last_state_index);
+            let output_on_path =
+                self.diff_propagation(first_state_with_output, value, last_state_index);
+
+            let prefix_on_path_len = common_prefix_index(&output_on_path, value);
+            //add value[prefix_len..] to last output of last state
+            let last_state = &mut self.states[last_state_index];
+            last_state.set_last_output(&value[prefix_on_path_len..]);
+        } else {
+            //add value to last output of last state
+            let last_state = &mut self.states[last_state_index];
+            last_state.set_last_output(&value);
+        }
+    }
+
+    /*
+     * propagate diff on the entire path from next_state to last_state.
+     * Returns
+     */
+    fn diff_propagation(
+        &mut self,
+        first_state_index: usize,
+        value: &[u8],
+        last_state_index: usize,
+    ) -> Vec<u8> {
+        assert!(first_state_index <= last_state_index);
+
+        //get a mut reference to next state (last child)
+        let mut current_state_index = first_state_index;
+
+        let mut diff = None;
+
+        //this buff will be used to keep track of what output is encountered by walking the path
+        //from first_state_index up to last_state.
+        let mut buff: Vec<u8> = Vec::with_capacity(value.len());
+
+        //while loop until current state != last_state
+        while current_state_index != last_state_index {
+            //
+            //propagate diff to all outgoing edges. Diff will be prepended to their outputs
+            let current_state = &mut self.states[current_state_index];
+            assert!(current_state.has_children());
+            current_state.propagate_new_prefix(&diff);
+
+            //Take last output.
+            let current_last_output = current_state.get_last_output();
 
             //find common prefix between output and value
-            let prefix_len = common_prefix_index(state_output, value);
+            if let Some(output) = current_last_output {
+                //output on last edge has some value. It is NOT None
 
-            let first_state = &mut self.states[first_state_with_output];
+                let prefix_up_to = common_prefix_index(output, value);
+                diff = current_state.truncate_last_output(prefix_up_to);
+            }
+            //TODO
+            else {
+                diff = None;
+            }
 
-            //also find the diff (relative to the state output)
-            let diff = first_state.truncate_last_output(prefix_len);
-
-            //get next child
-            let next_state_index = first_state.last_child().unwrap();
-            self.diff_propagation(next_state_index, value, diff, last_state_index);
-
-            //Now, propagate diff to ALL edges EXCEPT last one. Diff will be prepended to their
-            //outputs
-
-            //add value to last output of last_state
+            //update current state to last_child
+            current_state_index = current_state.last_child().unwrap();
+            if let Some(s) = current_state.get_last_output() {
+                buff.append(&mut s.to_vec());
+            }
         }
+
+        //Now propagate diff to ALL edges EXCEPT last one. Diff will be prepended to their
+        //outputs
+
+        let last_state = &mut self.states[last_state_index];
+        last_state.propagate_prefix_exc_last(&diff);
+
+        //add value to last output of last_state
+        last_state.set_last_output(value);
+
+        return buff;
     }
 
     /*
@@ -241,31 +308,6 @@ impl Transducer {
 
         self.last_key_len = word_len;
         self.last_key[..word_len].copy_from_slice(&new_key[..word_len]);
-    }
-
-    //propagate diff on the entire path from next_state to last_state
-    fn diff_propagation(
-        &mut self,
-        next_state_index: usize,
-        value: &[u8],
-        diff: Option<Vec<u8>>,
-        last_state_index: usize,
-    ) {
-        todo!("diff propagation not yet implemented!");
-        //get a mut reference to next state (last child)
-
-        //while loop until current state != last_state
-
-        //propagate diff to all outgoing edges. Diff will be prepended to their outputs
-
-        //Take last output.
-
-        //find common prefix between output and value
-        //also find the diff AGAIN
-
-        //update current state to last_child
-
-        //end while
     }
 }
 

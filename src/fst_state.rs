@@ -114,14 +114,42 @@ impl FstState {
         }
     }
 
-    //prepend new_prefix to all outputs except for the last one
-    //TODO shouldn't use option but just a slice -- Maybe?
-    pub fn propagate_new_prefix(&mut self, new_prefix: Option<Vec<u8>>) {
+    //prepend new_prefix to all outputs
+    pub fn propagate_new_prefix(&mut self, new_prefix: &Option<Vec<u8>>) {
         //nothing to prepend
-        if new_prefix == None {
+        if *new_prefix == None {
             return;
         }
-        let new_prefix = &new_prefix.unwrap();
+
+        let new_prefix = new_prefix.as_deref().unwrap();
+        assert!(new_prefix.len() > 0);
+        assert_eq!(self.transitions.len(), self.outputs.len());
+
+        //skip the last outgoing edge
+        for out_edge in self.outputs.iter_mut() {
+            match out_edge {
+                //if output edge has some value then we prepend new_prefix to it
+                Some(out) => {
+                    let len_before_insert = out.len();
+                    out.splice(..0, new_prefix.iter().cloned());
+                    assert!(len_before_insert < out.len());
+                }
+                //if output edge is None then just copy the new prefix into it
+                None => {
+                    out_edge.replace(new_prefix.to_owned());
+                }
+            }
+        }
+    }
+
+    //prepend new_prefix to all outputs except the last one
+    pub fn propagate_prefix_exc_last(&mut self, new_prefix: &Option<Vec<u8>>) {
+        //nothing to prepend
+        if *new_prefix == None {
+            return;
+        }
+
+        let new_prefix = new_prefix.as_deref().unwrap();
         assert!(new_prefix.len() > 0);
         assert_eq!(self.transitions.len(), self.outputs.len());
 
@@ -310,7 +338,7 @@ mod fst_state_unit_tests {
         state.add_transition(103, 3);
         state.set_last_output("pizza".as_bytes());
 
-        state.propagate_new_prefix(Some("ratto ".as_bytes().to_vec()));
+        state.propagate_new_prefix(&Some("ratto ".as_bytes().to_vec()));
 
         assert!(state.get_last_output().unwrap().len() == 5);
         let output = state.outputs[0].as_ref().unwrap();
