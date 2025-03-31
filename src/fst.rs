@@ -1,8 +1,9 @@
+use std::os::linux::raw::stat;
+
 use crate::{
     automaton::{Automaton, AutomatonState},
-    fst_state::FstState,
-    register::Register,
-    register::{REGISTER_CAPACITY, REGISTER_COUNT_MASK},
+    fst_state::{FstState, common_prefix_index},
+    register::{REGISTER_CAPACITY, REGISTER_COUNT_MASK, Register},
 };
 
 #[derive(Debug)]
@@ -198,47 +199,35 @@ impl Transducer {
     pub fn insert_value(&mut self, value: &[u8], last_state_index: usize) {
         assert!(value.len() > 0);
 
-        if self.states[last_state_index].is_final {
-            todo!();
-        }
+        //not sufficent. You may have to use subtraction on values even though the suffix doesn't
+        //start from a final state.
+        //if self.states[last_state_index].is_final {
+        //    todo!();
+        //}
 
         //output value present in the given path
         if let Some(first_state_with_output) = self.first_output_on_path_to(last_state_index) {
-            //find the common prefix and diff between current value and the output on the just found
-            //state
-            let state = &self.states[first_state_with_output];
+            //
+            //get output of first_state
+            let first_state = &self.states[first_state_with_output];
+            let state_output = first_state.get_last_output().unwrap();
 
-            let prefix_len = state.find_new_prefix_len(&value);
-            println!("prefix len (of value) is: {prefix_len}");
+            //find common prefix between output and value
+            let prefix_len = common_prefix_index(state_output, value);
 
-            //set output prefix as new output for first_state_with_output.
-            //also get diff. Note that diff may be None
-            let diff: Option<Vec<u8>>;
+            let first_state = &mut self.states[first_state_with_output];
 
-            if prefix_len != 0 {
-                let state = &mut self.states[first_state_with_output];
-                diff = state.truncate_last_output(prefix_len);
-            } else {
-                let state = &mut self.states[first_state_with_output];
-                diff = Some(state.clear_last_output());
-                println!("called clear on last_output\nstate is now: {:?}", state);
-            }
+            //also find the diff (relative to the state output)
+            let diff = first_state.truncate_last_output(prefix_len);
 
-            println!("diff is: {:?}", diff);
-            let last_state = &mut self.states[last_state_index];
-            last_state.propagate_new_prefix(diff);
+            //get next child
+            let next_state_index = first_state.last_child().unwrap();
+            self.diff_propagation(next_state_index, value, diff, last_state_index);
 
-            last_state.set_last_output(&value[prefix_len..]);
-        }
-        //TODO this is a bit weird
-        //maybe move it in the `then` branch
-        //
-        //new value with no prefix on path
-        //should just add the entire value to the last output of last_state
-        else {
-            let last_state = &mut self.states[last_state_index];
-            last_state.set_last_output(&value);
-            println!("in else: last state is {:?}", last_state);
+            //Now, propagate diff to ALL edges EXCEPT last one. Diff will be prepended to their
+            //outputs
+
+            //add value to last output of last_state
         }
     }
 
@@ -252,6 +241,31 @@ impl Transducer {
 
         self.last_key_len = word_len;
         self.last_key[..word_len].copy_from_slice(&new_key[..word_len]);
+    }
+
+    //propagate diff on the entire path from next_state to last_state
+    fn diff_propagation(
+        &mut self,
+        next_state_index: usize,
+        value: &[u8],
+        diff: Option<Vec<u8>>,
+        last_state_index: usize,
+    ) {
+        todo!("diff propagation not yet implemented!");
+        //get a mut reference to next state (last child)
+
+        //while loop until current state != last_state
+
+        //propagate diff to all outgoing edges. Diff will be prepended to their outputs
+
+        //Take last output.
+
+        //find common prefix between output and value
+        //also find the diff AGAIN
+
+        //update current state to last_child
+
+        //end while
     }
 }
 
