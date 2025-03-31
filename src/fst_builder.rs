@@ -86,7 +86,7 @@ pub fn dump_graph(fst: &Transducer, file_path: &str) -> io::Result<()> {
             let (on_char, to_state) = transition;
 
             let label: String;
-            if let Some(value) = output {
+            if let Some(value) = output.get_value_as_deref() {
                 label = format!(
                     "{}: {}",
                     *on_char as char,
@@ -110,7 +110,6 @@ pub fn dump_graph(fst: &Transducer, file_path: &str) -> io::Result<()> {
 mod fst_builder_tests {
 
     use crate::fst_state::FstState;
-    use crate::fst_state::FstStateOutput;
 
     use super::build_transducer_from_collection;
     use super::dump_graph;

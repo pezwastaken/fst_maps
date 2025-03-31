@@ -1,24 +1,71 @@
 use crate::automaton::AutomatonState;
 
 #[derive(Hash, Debug)]
-//pub struct TransitionOutput {
-//    value: Option<Vec<u8>>,
-//    subtract: usize,
-//}
-//
-//impl TransitionOutput {
-//    pub fn has_value(&self) -> bool {
-//        return self.value.is_some();
-//    }
-//
-//    pub fn get_value(&self) -> Option<&Vec<u8>> {
-//        return self.value.as_ref();
-//    }
-//
-//    pub fn get_subtract(&self) -> usize {
-//        return self.subtract;
-//    }
-//}
+pub struct TransitionOutput {
+    value: Option<Vec<u8>>,
+    subtract: usize,
+}
+
+impl TransitionOutput {
+    fn new(sub: usize) -> Self {
+        TransitionOutput {
+            value: None,
+            subtract: sub,
+        }
+    }
+
+    fn new_with_value(value: Vec<u8>, sub: usize) -> Self {
+        TransitionOutput {
+            value: Some(value),
+            subtract: sub,
+        }
+    }
+
+    pub fn has_value(&self) -> bool {
+        return self.value.is_some();
+    }
+
+    pub fn get_value_as_deref(&self) -> Option<&[u8]> {
+        return self.value.as_deref();
+    }
+
+    ///panics if value is None
+    pub fn get_value_unwrapped(&self) -> &[u8] {
+        return self.get_value_as_deref().unwrap();
+    }
+
+    ///panics if value is None
+    pub fn drain_value(&mut self, from: usize) -> Vec<u8> {
+        if self.has_value() {
+            let suffix: Vec<_> = self.value.as_mut().unwrap().drain(from..).collect();
+            return suffix;
+        } else {
+            panic!("drain value called on state with output = None");
+        }
+    }
+
+    pub fn get_subtract(&self) -> usize {
+        return self.subtract;
+    }
+
+    pub fn set_value(&mut self, value: Option<Vec<u8>>) {
+        self.value = value;
+    }
+
+    pub fn set_value_from_slice(&mut self, value: &[u8]) {
+        self.value = Some(value.to_vec());
+    }
+
+    ///panics if value is None
+    pub fn prepend_slice(&mut self, new_prefix: &[u8]) {
+        let value = self.value.as_mut().unwrap();
+        value.splice(..0, new_prefix.iter().cloned());
+    }
+
+    pub fn take(&mut self) -> Option<Vec<u8>> {
+        return self.value.take();
+    }
+}
 #[derive(Debug, Hash)]
 pub struct FstState {
     //id: usize,
@@ -54,7 +101,7 @@ impl FstState {
     #[inline]
     pub fn get_last_output(&self) -> Option<&[u8]> {
         if let Some(out) = self.outputs.last() {
-            return out.as_deref();
+            return out.get_value_as_deref();
         }
         return None;
     }
@@ -65,19 +112,17 @@ impl FstState {
         if let Some(state_last_output) = self.get_last_output() {
             let prefix_index = common_prefix_index(current_str, state_last_output);
 
-            //let diff = &last_output_bytes[prefix_index..];
-
             return prefix_index;
         }
         return 0;
     }
 
     #[inline]
-    pub fn set_last_output(&mut self, output: &[u8]) {
+    pub fn set_last_output(&mut self, output: &[u8], subtract: usize) {
         assert_eq!(self.transitions.len(), self.outputs.len());
 
         if let Some(last_output) = self.outputs.last_mut() {
-            *last_output = Some(output.into());
+            *last_output = TransitionOutput::new_with_value(output.to_vec(), subtract);
         } else {
             panic!("output vec is empty!");
         }
@@ -98,9 +143,9 @@ impl FstState {
         println!("should truncate from char: {from}");
 
         if let Some(last_output_edge) = self.outputs.last_mut() {
-            if let Some(last_output) = last_output_edge {
+            if last_output_edge.has_value() {
                 //truncate
-                let suffix: Vec<_> = last_output.drain(from..).collect();
+                let suffix: Vec<_> = last_output_edge.drain_value(from);
                 println!("after truncating state is: {:?}", self);
 
                 if suffix.len() != 0 {
@@ -128,9 +173,9 @@ impl FstState {
     }
 
     //prepend new_prefix to all outputs
-    pub fn propagate_new_prefix(&mut self, new_prefix: &Option<Vec<u8>>) {
+    pub fn propagate_new_prefix(&mut self, new_prefix: Option<&[u8]>) {
         //nothing to prepend
-        if *new_prefix == None {
+        if new_prefix == None {
             return;
         }
 
@@ -138,19 +183,13 @@ impl FstState {
         assert!(new_prefix.len() > 0);
         assert_eq!(self.transitions.len(), self.outputs.len());
 
-        //skip the last outgoing edge
         for out_edge in self.outputs.iter_mut() {
-            match out_edge {
-                //if output edge has some value then we prepend new_prefix to it
-                Some(out) => {
-                    let len_before_insert = out.len();
-                    out.splice(..0, new_prefix.iter().cloned());
-                    assert_ne!(len_before_insert, out.len());
-                }
-                //if output edge is None then just copy the new prefix into it
-                None => {
-                    out_edge.replace(new_prefix.to_owned());
-                }
+            //if output edge has some value then we prepend new_prefix to it
+            if out_edge.has_value() {
+                out_edge.prepend_slice(new_prefix);
+            } else {
+                //replace entirely with new prefix is no edge has no value
+                out_edge.set_value_from_slice(new_prefix);
             }
         }
     }
@@ -168,17 +207,12 @@ impl FstState {
 
         //skip the last outgoing edge
         for out_edge in self.outputs.iter_mut().rev().skip(1) {
-            match out_edge {
+            if out_edge.has_value() {
                 //if output edge has some value then we prepend new_prefix to it
-                Some(out) => {
-                    let len_before_insert = out.len();
-                    out.splice(..0, new_prefix.iter().cloned());
-                    assert!(len_before_insert < out.len());
-                }
+                out_edge.prepend_slice(new_prefix);
+            } else {
                 //if output edge is None then just copy the new prefix into it
-                None => {
-                    out_edge.replace(new_prefix.to_owned());
-                }
+                out_edge.set_value_from_slice(new_prefix);
             }
         }
     }
@@ -220,10 +254,11 @@ impl AutomatonState for FstState {
 
     #[inline]
     fn add_transition(&mut self, y: u8, new_state_id: usize) {
-        //assert!(self.id < new_state_id);
         self.transitions.push((y, new_state_id));
         assert!(self.transitions.len() > 0);
-        self.outputs.push(None);
+
+        //create new empty output
+        self.outputs.push(TransitionOutput::new(0));
         assert_eq!(self.transitions.len(), self.outputs.len());
     }
 }
@@ -299,9 +334,9 @@ mod fst_state_unit_tests {
         let mut state = FstState::new();
 
         state.add_transition(100, 1);
-        state.set_last_output("ciao".as_bytes());
+        state.set_last_output(&"ciao".as_bytes(), 0);
         state.add_transition(101, 2);
-        state.set_last_output("topo".as_bytes());
+        state.set_last_output(&"topo".as_bytes(), 0);
 
         //let suffix = state.truncate_last_output(2).unwrap();
         let prefix_len = state.find_new_prefix_len("to".as_bytes());
@@ -317,7 +352,7 @@ mod fst_state_unit_tests {
         let mut state = FstState::new();
 
         state.add_transition(100, 1);
-        state.set_last_output("ciao".as_bytes());
+        state.set_last_output("ciao".as_bytes(), 0);
 
         let old_out_vec = state.clear_last_output();
         assert!(old_out_vec.len() == 4);
@@ -331,7 +366,7 @@ mod fst_state_unit_tests {
         let mut state = FstState::new();
 
         state.add_transition(100, 1);
-        state.set_last_output("ciao".as_bytes());
+        state.set_last_output("ciao".as_bytes(), 0);
 
         let suffix = state.truncate_last_output(2).unwrap();
 
@@ -345,19 +380,19 @@ mod fst_state_unit_tests {
         let mut state = FstState::new();
 
         state.add_transition(100, 1);
-        state.set_last_output("ciao".as_bytes());
+        state.set_last_output("ciao".as_bytes(), 0);
         state.add_transition(102, 2);
-        state.set_last_output("topo".as_bytes());
+        state.set_last_output("topo".as_bytes(), 0);
         state.add_transition(103, 3);
-        state.set_last_output("pizza".as_bytes());
+        state.set_last_output("pizza".as_bytes(), 0);
 
-        state.propagate_new_prefix(&Some("ratto ".as_bytes().to_vec()));
+        state.propagate_new_prefix(Some("ratto ".as_bytes()));
 
-        let output = state.outputs[0].as_ref().unwrap();
+        let output = state.outputs[0].get_value_unwrapped();
         assert_eq!(output, "ratto ciao".as_bytes());
-        let output = state.outputs[1].as_ref().unwrap();
+        let output = state.outputs[1].get_value_unwrapped();
         assert_eq!(output, "ratto topo".as_bytes());
-        let output = state.outputs[2].as_ref().unwrap();
+        let output = state.outputs[2].get_value_unwrapped();
         assert_eq!(output, "ratto pizza".as_bytes());
     }
 }

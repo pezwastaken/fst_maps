@@ -86,8 +86,6 @@ impl Transducer {
         //get the state `id` of the last outgoing transition from current state
         let child_index = state.last_child().unwrap();
 
-        //println!("last child index is {}", child_index);
-
         if self.state_has_children(child_index) {
             self.replace_or_register(child_index);
         }
@@ -213,11 +211,11 @@ impl Transducer {
 
             //add value[prefix_len..] to last output of last state
             let last_state = &mut self.states[last_state_index];
-            last_state.set_last_output(&value[prefix_on_path_len..]);
+            last_state.set_last_output(&value[prefix_on_path_len..], 0);
         } else {
             //add value to last output of last state
             let last_state = &mut self.states[last_state_index];
-            last_state.set_last_output(&value);
+            last_state.set_last_output(&value, 0);
         }
     }
 
@@ -253,7 +251,7 @@ impl Transducer {
             //A final state means that output on previous edges constitutes its total output
             //Propagating would mean modifying the value associated with that final state (key)
             if !current_state.is_final {
-                current_state.propagate_new_prefix(&diff);
+                current_state.propagate_new_prefix(diff.as_deref());
             }
 
             //Take last output.
@@ -283,7 +281,7 @@ impl Transducer {
         last_state.propagate_prefix_exc_last(&diff);
 
         //add value to last output of last_state
-        last_state.set_last_output(value);
+        last_state.set_last_output(value, 0);
 
         return buff;
     }
