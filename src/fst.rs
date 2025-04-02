@@ -42,6 +42,73 @@ impl Transducer {
         return self.states[state_index].has_children();
     }
 
+    ///process input tape starting from `state`.
+    ///Returns a tuple containing the reached state (if no errors) and the last seen final state if any, otherwise None.
+    fn delta_star_final_state(
+        &self,
+        state: usize,
+        input_tape: &[u8],
+    ) -> (Option<usize>, Option<usize>, Vec<u8>) {
+        assert!(self.states.len() > 0);
+
+        //a vector containing the output associated with the current final state
+        let mut current_output: Vec<u8> = Vec::new();
+
+        //a single output built while computing delta star. Once a final state is reached it is
+        //pushed onto tmp_outputs and reset
+        let mut tmp: Vec<u8> = Vec::with_capacity(input_tape.len());
+
+        let mut current_state = state;
+
+        //final state found on path
+        let mut last_seen_final_state = None;
+
+        for byte in input_tape.iter() {
+            //compute delta and get both the reached state and the possible output on the just made transition
+            if let Some((new_state, output)) = self.states[current_state].delta_with_output(*byte) {
+                //move to new state
+                assert!(current_state != new_state);
+
+                //Keep track of current output
+                if output.has_value() {
+                    //calculate new len of output.
+                    //Since some transitions may have subtraction along their edges
+                    assert!(tmp.len() >= output.get_subtract());
+                    let new_len = tmp.len() - output.get_subtract();
+
+                    //TODO hint as cold
+                    if new_len > 0 {
+                        tmp.truncate(new_len);
+                    }
+                    let len_before_extend = tmp.len();
+                    tmp.extend_from_slice(&output.get_value_unwrapped());
+                    assert!(tmp.len() > len_before_extend);
+                }
+
+                //update state
+                current_state = new_state;
+
+                //new state is final
+                if self.states[current_state].is_final {
+                    last_seen_final_state = Some(current_state);
+
+                    //push tmp to tmp_outputs and reset tmp
+                    //tmp_outputs.push(tmp);
+                    current_output = tmp;
+                    tmp = Vec::new();
+                } else {
+                }
+            } else {
+                return (None, None, current_output);
+            }
+        }
+
+        if last_seen_final_state.is_some() {
+            assert_ne!(current_output.len(), 0);
+        }
+        return (Some(current_state), last_seen_final_state, current_output);
+    }
+
     //start keeping track of suffix y in the fsa
     //new states will originate from `last_state`
     //a suffix = "" will do nothing
@@ -253,14 +320,18 @@ impl Transducer {
             if !current_state.is_final {
                 current_state.propagate_new_prefix(diff.as_deref());
             }
+            //current state is final
+            else {
+                todo!("subtraction needed!");
+            }
 
             //Take last output.
             let current_last_output = current_state.get_last_output();
 
             //find common prefix between output and value
             if let Some(output) = current_last_output {
+                //
                 //output on last edge has some value. It is NOT None
-
                 let prefix_up_to = common_prefix_index(output, value);
                 diff = current_state.truncate_last_output(prefix_up_to);
             } else {
@@ -328,10 +399,6 @@ impl Automaton for Transducer {
     #[inline]
     fn delta_star_from_initial_state(&self, input_tape: &[u8]) -> Option<usize> {
         self.delta_star(0, input_tape)
-    }
-
-    fn delta_star_with_output(&self, state: usize, input_tape: &[u8]) -> Option<usize> {
-        todo!()
     }
 }
 

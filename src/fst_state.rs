@@ -229,6 +229,29 @@ impl AutomatonState for FstState {
         return transition.map(|(_, next_state)| *next_state);
     }
 
+    fn delta_with_output(&self, c: u8) -> Option<(usize, &TransitionOutput)> {
+        let transition = self
+            .transitions
+            .iter()
+            .enumerate()
+            .find(|(_, (transition_char, _))| *transition_char == c)
+            .map(|(i, (ch, to_state))| (i, (*ch, *to_state)));
+
+        //match the transition
+        return match transition {
+            //if a transition for char ch exists, then look for an output associated with it
+            Some(edge) => {
+                let (index, (_, to_state)) = edge;
+
+                let outputs = &self.outputs;
+                let output_on_transition = &outputs[index];
+
+                Some((to_state, &output_on_transition))
+            }
+            None => None,
+        };
+    }
+
     //check whether current state has outgoing transitions
     #[inline]
     fn has_children(&self) -> bool {
@@ -246,13 +269,6 @@ impl AutomatonState for FstState {
     }
 
     #[inline]
-    fn clear_state(&mut self) {
-        self.is_final = false;
-        self.transitions.clear();
-        self.outputs.clear();
-    }
-
-    #[inline]
     fn add_transition(&mut self, y: u8, new_state_id: usize) {
         self.transitions.push((y, new_state_id));
         assert!(self.transitions.len() > 0);
@@ -260,6 +276,13 @@ impl AutomatonState for FstState {
         //create new empty output
         self.outputs.push(TransitionOutput::new(0));
         assert_eq!(self.transitions.len(), self.outputs.len());
+    }
+
+    #[inline]
+    fn clear_state(&mut self) {
+        self.is_final = false;
+        self.transitions.clear();
+        self.outputs.clear();
     }
 }
 
