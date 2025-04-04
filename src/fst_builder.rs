@@ -1,29 +1,107 @@
+use rand::distributions::Alphanumeric;
+use rand::thread_rng;
+
 use crate::automaton::AutomatonState;
+use crate::fst::FstError;
 use crate::fst::Transducer;
 use crate::fst_state::common_prefix_index;
-use crate::{automaton::Automaton, fst::FstError};
 
 use core::result::Result;
+use rand::Rng;
 use std::fs::File;
 use std::io;
 use std::io::BufRead;
 use std::io::Write;
 
-pub fn build_transducer_from_collection(
-    collection: Vec<(Vec<u8>, Vec<u8>)>,
-) -> Result<Transducer, FstError> {
-    assert!(collection.len() > 0);
+struct StringGenerator {
+    count: usize,
+    n_of_pairs: usize,
+    max_key_len: usize,
+    max_value_len: usize,
+    delimiter: u8,
+}
 
+impl StringGenerator {
+    const CHARSET: &[u8] = b"abcdefghijklmnopqrstuvwxyz";
+
+    fn new(n: usize, key_len: usize, value_len: usize, delim: u8) -> Self {
+        Self {
+            count: 0,
+            n_of_pairs: n,
+            max_key_len: key_len,
+            max_value_len: value_len,
+            delimiter: delim,
+        }
+    }
+
+    fn random_string_gen(&self, len: usize) -> Vec<u8> {
+        //https://rust-lang-nursery.github.io/rust-cookbook/algorithms/randomness.html#create-random-passwords-from-a-set-of-alphanumeric-characters
+        return thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(len)
+            .map(u8::from)
+            .collect();
+    }
+}
+
+impl Iterator for StringGenerator {
+    type Item = Vec<u8>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.count < self.n_of_pairs {
+            //final random pair
+            let mut pair: Vec<u8> = Vec::with_capacity(self.max_value_len + self.max_key_len + 2);
+            pair.push(self.delimiter);
+
+            //random key
+            let mut rand_key = self.random_string_gen(self.max_key_len);
+            pair.append(&mut rand_key);
+
+            //delimiter
+            pair.push(self.delimiter);
+
+            //random value
+            let mut rand_value = self.random_string_gen(self.max_value_len);
+            pair.append(&mut rand_value);
+
+            //println!(
+            //    "random pair generated: {}",
+            //    std::str::from_utf8(&pair).unwrap()
+            //);
+
+            self.count += 1;
+
+            Some(pair)
+        } else {
+            None
+        }
+    }
+}
+
+//TODO empty files are not handled !?
+pub fn build_transducer_from_collection<T>(
+    //collection: Vec<(Vec<u8>, Vec<u8>)>,
+    input_stream: &mut T,
+) -> Result<Transducer, FstError>
+where
+    T: Iterator<Item = Vec<u8>>,
+{
     let mut transducer = Transducer::new();
-
-    let mut previous_key_i = 0;
 
     transducer.push_zinit_state();
 
     assert_eq!(transducer.states.len(), 1);
 
-    for (i, key_value_pair) in collection.iter().enumerate() {
-        let (key, value) = key_value_pair;
+    for item in input_stream {
+        //if let Ok(lines) = read_lines(filename) {
+        //    for line in lines.filter(|x| x.is_ok()) {
+        //convert lines to bytes
+        let bytes: &[u8] = &item;
+
+        let (key, value): (&[u8], &[u8]) = parse_line(bytes).expect("No lines should be empty!");
+
+        //TODO
+        //add check on key
 
         //key common prefix len
         let prefix_len = common_prefix_index(&transducer.last_key, &key);
@@ -34,13 +112,12 @@ pub fn build_transducer_from_collection(
         //compute delta* from initial state with the common prefix as input.
         //The reached state will be the one after which the suffix will be added.
         //Since the dataset is ordered, no other word will "touch" states that come after last_state.
-        //let last_state_index = transducer
-        //    .delta_star_from_initial_state(prefix)
-        //    .expect(&format!("transitioned to err state after checking common prefix!\nWas processing {:?} and common prefix was {:?}.\nLast str is: {:?}", std::str::from_utf8(key).unwrap(), std::str::from_utf8(prefix).unwrap(), std::str::from_utf8(&collection[previous_key_i].0).unwrap()));
         let (last_state_index, seen_final_state_index) =
             transducer.delta_star_final_state(0, prefix);
 
-        let last_state_index = last_state_index.expect(&format!("transitioned to err state after checking common prefix!\nWas processing {:?} and common prefix was {:?}.\nLast str is: {:?}", std::str::from_utf8(key).unwrap(), std::str::from_utf8(prefix).unwrap(), std::str::from_utf8(&collection[previous_key_i].0).unwrap()));
+        let last_state_index = last_state_index.expect(
+            "should never reach an error state by reading the prefix of an already added key",
+        );
 
         assert!(last_state_index < transducer.states.len());
 
@@ -49,16 +126,13 @@ pub fn build_transducer_from_collection(
             transducer.replace_or_register(last_state_index);
         }
 
-        let suffix = &key[prefix_len..];
-        transducer.add_suffix_to_fsa(last_state_index, suffix);
-
-        //insert current value associated with current key in the fst
-        transducer.insert_value(&value, last_state_index, seen_final_state_index);
-
-        //update buffer containing last processed key
-        transducer.update_last_key(key);
-
-        previous_key_i = i;
+        transducer.insert_pair(
+            key,
+            value,
+            prefix_len,
+            last_state_index,
+            seen_final_state_index,
+        );
     }
 
     transducer.replace_or_register(0);
@@ -66,26 +140,33 @@ pub fn build_transducer_from_collection(
     return Ok(transducer);
 }
 
-//TODO
-//This should go inside the build function.
-//Its outermost loop should be this one.
-//The last Replace or register (q0) is run as soon as there's no lines left
-fn pairs_from_file(filename: &str) -> Result<Vec<(String, String)>, &str> {
-    let mut string_collection: Vec<(String, String)> = Vec::new();
-
-    if let Ok(lines) = read_lines(filename) {
-        for (i, line) in lines.filter(|x| x.is_ok()).enumerate() {
-            string_collection.push((line.expect("couldn't read line"), String::from("")));
-        }
-        return Ok(string_collection);
-    }
-    return Err("couldn't read lines");
-}
-
 fn read_lines(filename: &str) -> io::Result<io::Lines<io::BufReader<File>>> {
     let file = File::open(filename)?;
 
     Ok(io::BufReader::new(file).lines())
+}
+
+///parse a line and return two slices:
+/// - key
+/// - value
+///they are separated by the character at the beginning of the line, which should never appear in
+///the actual content.
+///
+///Example
+/// /hello, this is the key/here's the value
+fn parse_line(line: &[u8]) -> Option<(&[u8], &[u8])> {
+    assert!(!line.is_empty());
+    let delimiter = line.get(0)?;
+
+    let line = &line[1..];
+    let key_up_to = line.iter().position(|x| *x == *delimiter)?;
+
+    assert!(key_up_to < line.len());
+
+    let key = &line[..key_up_to];
+    let value = &line[key_up_to + 1..];
+
+    Some((key, value))
 }
 
 pub fn dump_graph(fst: &Transducer, file_path: &str) -> io::Result<()> {
@@ -106,8 +187,6 @@ pub fn dump_graph(fst: &Transducer, file_path: &str) -> io::Result<()> {
     for (i, state) in fst.states.iter().enumerate() {
         let state_transitions = &state.transitions;
         let state_outputs = &state.outputs;
-
-        println!("state {i}");
 
         assert!(state_transitions.len() >= state_outputs.len());
         for (transition, output) in state_transitions.iter().zip(state_outputs) {
@@ -137,117 +216,91 @@ pub fn dump_graph(fst: &Transducer, file_path: &str) -> io::Result<()> {
 #[cfg(test)]
 mod fst_builder_tests {
 
+    use std::rc::Rc;
+
+    use rand::Rng;
+    use rand::distributions::Alphanumeric;
+    use rand::thread_rng;
+
     use crate::automaton::Automaton;
+    use crate::fst::Transducer;
     use crate::fst_state::FstState;
 
+    use super::StringGenerator;
     use super::build_transducer_from_collection;
     use super::dump_graph;
+    use super::parse_line;
+    use super::read_lines;
 
+    //#[test]
+    //fn small_file() {
+    //    let filename = "maps/5.txt";
+    //    //let Ok(fst) = build_transducer_from_collection(&filename);
+    //
+    //    //ensure_all_pairs(&fst, &filename);
+    //    //
+    //    //dump_graph(&fst, "fst.dot");
+    //}
+    //
+    //
     #[test]
-    fn two_pairs() {
-        let first_pair = (
-            String::from("ciao").as_bytes().to_vec(),
-            String::from("rat").as_bytes().to_vec(),
-        );
+    fn random_strings_1() {
+        let n = 5;
 
-        let second_pair = (
-            String::from("colle").as_bytes().to_vec(),
-            String::from("ratto").as_bytes().to_vec(),
-        );
+        let mut generator = StringGenerator::new(n, 50, 50, '/' as u8);
 
-        let collection = vec![first_pair, second_pair];
+        let Ok(fst) = build_transducer_from_collection(&mut generator);
 
-        let Ok(fst) = build_transducer_from_collection(collection);
+        //ensure_all_pairs(&fst, &filename);
 
         //dump_graph(&fst, "fst.dot");
     }
 
     #[test]
-    fn three_pairs() {
-        println!("-----------------------------\n\n");
-        let first_pair = (
-            String::from("ciao").as_bytes().to_vec(),
-            String::from("rat").as_bytes().to_vec(),
-        );
+    fn random_strings_2() {
+        let n = 20;
 
-        let second_pair = (
-            String::from("pizza").as_bytes().to_vec(),
-            String::from("ratto").as_bytes().to_vec(),
-        );
+        let mut generator = StringGenerator::new(n, 25, 25, '/' as u8);
 
-        let third_pair = (
-            String::from("pizzaiolo").as_bytes().to_vec(),
-            String::from("zappa").as_bytes().to_vec(),
-        );
+        let Ok(fst) = build_transducer_from_collection(&mut generator);
 
-        let collection = vec![first_pair, second_pair, third_pair];
-
-        let Ok(fst) = build_transducer_from_collection(collection);
-
-        //dump_graph(&fst, "fst.dot");
-    }
-
-    #[test]
-    fn four_pairs() {
-        println!("-----------------------------\n\n");
-        let first_pair = (
-            String::from("ciao").as_bytes().to_vec(),
-            String::from("rat").as_bytes().to_vec(),
-        );
-
-        let second_pair = (
-            String::from("ciaspola").as_bytes().to_vec(),
-            String::from("ratto").as_bytes().to_vec(),
-        );
-
-        let third_pair = (
-            String::from("come").as_bytes().to_vec(),
-            String::from("ronda").as_bytes().to_vec(),
-        );
-
-        let fourth_pair = (
-            String::from("zoccolo").as_bytes().to_vec(),
-            String::from("picciotto").as_bytes().to_vec(),
-        );
-
-        let my_arr = [first_pair, second_pair, third_pair, fourth_pair];
-        let collection = my_arr.to_vec();
-
-        let Ok(fst) = build_transducer_from_collection(collection);
-
-        for item in my_arr.iter() {
-            assert!(fst.get(&item.0).is_some());
-        }
-        //dump_graph(&fst, "fst.dot");
-    }
-
-    #[test]
-    fn merging_states_with_output() {
-        println!("-----------------------------\n\n");
-        let first_pair = (
-            String::from("suono").as_bytes().to_vec(),
-            String::from("gatto").as_bytes().to_vec(),
-        );
-
-        let second_pair = (
-            String::from("tuono").as_bytes().to_vec(),
-            String::from("ratto").as_bytes().to_vec(),
-        );
-
-        let third_pair = (
-            String::from("tzatziki").as_bytes().to_vec(),
-            String::from("romolo").as_bytes().to_vec(),
-        );
-
-        let my_arr = [first_pair, second_pair, third_pair];
-        let collection = my_arr.to_vec();
-
-        let Ok(fst) = build_transducer_from_collection(collection);
-
-        for item in my_arr.iter() {
-            assert!(fst.get(&item.0).is_some());
-        }
+        //ensure_all_pairs(&fst, &filename);
 
         dump_graph(&fst, "fst.dot");
+    }
+
+    //#[test]
+    //fn file_1() {
+    //    let filename = "maps/100.txt";
+    //    let Ok(fst) = build_transducer_from_collection(&filename);
+    //
+    //    ensure_all_pairs(&fst, &filename);
+    //
+    //    dump_graph(&fst, "fst.dot");
+    //}
+
+    //#[test]
+    //fn x() {
+    //    println!("random str: {:?}", gen_random_pair(10, 10, '/' as u8));
+    //}
+
+    fn ensure_all_pairs(fst: &Transducer, filename: &str) {
+        if let Ok(lines) = read_lines(filename) {
+            for line in lines.filter(|x| x.is_ok()) {
+                //convert lines to bytes
+                let bytes: &[u8] = &line.as_ref().unwrap().as_bytes();
+
+                let (key, value): (&[u8], &[u8]) =
+                    parse_line(bytes).expect("No lines should be empty!");
+
+                //get value back from fst
+                let value_from_fst = fst.get(&key);
+                assert!(value_from_fst.is_some());
+
+                assert_eq!(value, &value_from_fst.unwrap());
+            }
+        } else {
+            panic!("couldn't open file {filename}");
+        }
     }
 }

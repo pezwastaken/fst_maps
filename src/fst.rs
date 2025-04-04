@@ -102,6 +102,24 @@ impl Transducer {
         return (Some(current_state), last_seen_final_state);
     }
 
+    pub fn insert_pair(
+        &mut self,
+        key: &[u8],
+        value: &[u8],
+        key_prefix_len: usize,
+        from_state: usize,
+        seen_final_state: Option<usize>,
+    ) {
+        let suffix = &key[key_prefix_len..];
+        self.add_suffix_to_fsa(from_state, suffix);
+
+        //insert current value associated with current key in the fst
+        self.insert_value(&value, from_state, seen_final_state);
+
+        //update buffer containing last processed key
+        self.update_last_key(key);
+    }
+
     //start keeping track of suffix y in the fsa
     //new states will originate from `last_state`
     //a suffix = "" will do nothing
@@ -423,6 +441,7 @@ impl Automaton for Transducer {
 
         //if a final state was reached => return the value
         if self.is_final_state(current_state) {
+            output = tmp;
             return Some(output);
         }
         //else return None => input_tape wasn't a valid key

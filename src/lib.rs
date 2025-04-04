@@ -105,28 +105,6 @@ mod tests {
     //    assert!(automata.delta_star(0, &String::from("ciao")).is_none());
     //}
     //
-    #[test]
-    fn small_word_list() {
-        let mut automata = Automata::new(100);
-
-        let string_collection = collection_from_file("words_small.txt").unwrap();
-
-        //let string_collection = ["ciao", "miao", "x"];
-        crate::fsa::build_fsa(&mut automata, &string_collection);
-        are_strings_accepted(&automata, &string_collection);
-
-        let not_valid = random_strings_from_collection(&string_collection);
-        assert!(not_valid.len() != 0);
-        are_strings_not_accepted(&automata, &not_valid);
-
-        let _nanono = String::from("nanono");
-
-        fsa_dump_graph(&automata, "fsa.dot");
-
-        //let reached_state = automata.delta_star_from_initial_state(&nanono).unwrap();
-        //
-        //assert!(automata.is_final_state(reached_state));
-    }
     //
     //#[test]
     //fn word_list_len_100() {

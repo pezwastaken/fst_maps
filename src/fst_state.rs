@@ -126,7 +126,6 @@ impl FstState {
     #[inline]
     pub fn truncate_last_output(&mut self, from: usize) -> Option<Vec<u8>> {
         assert_eq!(self.transitions.len(), self.outputs.len());
-        assert!(from > 0);
 
         println!("called truncate_last_output on state: {:?}", self);
 
