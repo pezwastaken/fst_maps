@@ -3,22 +3,15 @@ use crate::automaton::AutomatonState;
 #[derive(Hash, Debug)]
 pub struct TransitionOutput {
     value: Option<Vec<u8>>,
-    subtract: usize,
 }
 
 impl TransitionOutput {
-    fn new(sub: usize) -> Self {
-        TransitionOutput {
-            value: None,
-            subtract: sub,
-        }
+    pub fn new() -> Self {
+        TransitionOutput { value: None }
     }
 
-    fn new_with_value(value: Vec<u8>, sub: usize) -> Self {
-        TransitionOutput {
-            value: Some(value),
-            subtract: sub,
-        }
+    fn new_with_value(value: Vec<u8>) -> Self {
+        TransitionOutput { value: Some(value) }
     }
 
     pub fn has_value(&self) -> bool {
@@ -42,10 +35,6 @@ impl TransitionOutput {
         } else {
             panic!("drain value called on state with output = None");
         }
-    }
-
-    pub fn get_subtract(&self) -> usize {
-        return self.subtract;
     }
 
     pub fn set_value(&mut self, value: Option<Vec<u8>>) {
@@ -99,17 +88,18 @@ impl FstState {
     }
 
     #[inline]
-    pub fn get_last_output(&self) -> Option<&[u8]> {
-        if let Some(out) = self.outputs.last() {
-            return out.get_value_as_deref();
-        }
-        return None;
+    pub fn get_last_output(&self) -> &TransitionOutput {
+        //if let Some(out) = self.outputs.last() {
+        //    return out.get_value_as_deref();
+        //}
+        //return None;
+        return self.outputs.last().expect("outputs should never be empty!");
     }
 
     //find common prefix between state last output and current str
     pub fn find_new_prefix_len(&self, current_str: &[u8]) -> usize {
         //find common prefix between initial state last output and current str
-        if let Some(state_last_output) = self.get_last_output() {
+        if let Some(state_last_output) = self.get_last_output().get_value_as_deref() {
             let prefix_index = common_prefix_index(current_str, state_last_output);
 
             return prefix_index;
@@ -118,11 +108,11 @@ impl FstState {
     }
 
     #[inline]
-    pub fn set_last_output(&mut self, output: &[u8], subtract: usize) {
+    pub fn set_last_output(&mut self, output: &[u8]) {
         assert_eq!(self.transitions.len(), self.outputs.len());
 
         if let Some(last_output) = self.outputs.last_mut() {
-            *last_output = TransitionOutput::new_with_value(output.to_vec(), subtract);
+            *last_output = TransitionOutput::new_with_value(output.to_vec());
         } else {
             panic!("output vec is empty!");
         }
@@ -274,7 +264,7 @@ impl AutomatonState for FstState {
         assert!(self.transitions.len() > 0);
 
         //create new empty output
-        self.outputs.push(TransitionOutput::new(0));
+        self.outputs.push(TransitionOutput::new());
         assert_eq!(self.transitions.len(), self.outputs.len());
     }
 
@@ -357,9 +347,9 @@ mod fst_state_unit_tests {
         let mut state = FstState::new();
 
         state.add_transition(100, 1);
-        state.set_last_output(&"ciao".as_bytes(), 0);
+        state.set_last_output(&"ciao".as_bytes());
         state.add_transition(101, 2);
-        state.set_last_output(&"topo".as_bytes(), 0);
+        state.set_last_output(&"topo".as_bytes());
 
         //let suffix = state.truncate_last_output(2).unwrap();
         let prefix_len = state.find_new_prefix_len("to".as_bytes());
@@ -375,13 +365,13 @@ mod fst_state_unit_tests {
         let mut state = FstState::new();
 
         state.add_transition(100, 1);
-        state.set_last_output("ciao".as_bytes(), 0);
+        state.set_last_output("ciao".as_bytes());
 
         let old_out_vec = state.clear_last_output();
         assert!(old_out_vec.len() == 4);
         assert_eq!(old_out_vec[0] as char, 'c');
         assert_eq!(old_out_vec[3] as char, 'o');
-        assert_eq!(state.get_last_output(), None);
+        assert_eq!(state.get_last_output().get_value_as_deref(), None);
     }
 
     #[test]
@@ -389,7 +379,7 @@ mod fst_state_unit_tests {
         let mut state = FstState::new();
 
         state.add_transition(100, 1);
-        state.set_last_output("ciao".as_bytes(), 0);
+        state.set_last_output("ciao".as_bytes());
 
         let suffix = state.truncate_last_output(2).unwrap();
 
@@ -403,11 +393,11 @@ mod fst_state_unit_tests {
         let mut state = FstState::new();
 
         state.add_transition(100, 1);
-        state.set_last_output("ciao".as_bytes(), 0);
+        state.set_last_output("ciao".as_bytes());
         state.add_transition(102, 2);
-        state.set_last_output("topo".as_bytes(), 0);
+        state.set_last_output("topo".as_bytes());
         state.add_transition(103, 3);
-        state.set_last_output("pizza".as_bytes(), 0);
+        state.set_last_output("pizza".as_bytes());
 
         state.propagate_new_prefix(Some("ratto ".as_bytes()));
 

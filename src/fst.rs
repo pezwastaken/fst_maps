@@ -44,11 +44,11 @@ impl Transducer {
 
     ///process input tape starting from `state`.
     ///Returns a tuple containing the reached state (if no errors) and the last seen final state if any, otherwise None.
-    fn delta_star_final_state(
+    pub fn delta_star_final_state(
         &self,
         state: usize,
         input_tape: &[u8],
-    ) -> (Option<usize>, Option<usize>, Vec<u8>) {
+    ) -> (Option<usize>, Option<usize>) {
         assert!(self.states.len() > 0);
 
         //a vector containing the output associated with the current final state
@@ -71,15 +71,6 @@ impl Transducer {
 
                 //Keep track of current output
                 if output.has_value() {
-                    //calculate new len of output.
-                    //Since some transitions may have subtraction along their edges
-                    assert!(tmp.len() >= output.get_subtract());
-                    let new_len = tmp.len() - output.get_subtract();
-
-                    //TODO hint as cold
-                    if new_len > 0 {
-                        tmp.truncate(new_len);
-                    }
                     let len_before_extend = tmp.len();
                     tmp.extend_from_slice(&output.get_value_unwrapped());
                     assert!(tmp.len() > len_before_extend);
@@ -88,7 +79,8 @@ impl Transducer {
                 //update state
                 current_state = new_state;
 
-                //new state is final
+                //new state is final.
+                //Update the last seen final state to some(current_state)
                 if self.states[current_state].is_final {
                     last_seen_final_state = Some(current_state);
 
@@ -96,17 +88,18 @@ impl Transducer {
                     //tmp_outputs.push(tmp);
                     current_output = tmp;
                     tmp = Vec::new();
-                } else {
                 }
-            } else {
-                return (None, None, current_output);
+            }
+            //transition led to an error state
+            else {
+                return (None, None);
             }
         }
 
         if last_seen_final_state.is_some() {
             assert_ne!(current_output.len(), 0);
         }
-        return (Some(current_state), last_seen_final_state, current_output);
+        return (Some(current_state), last_seen_final_state);
     }
 
     //start keeping track of suffix y in the fsa
@@ -226,16 +219,14 @@ impl Transducer {
                 let last_output = tmp.get_last_output();
 
                 //if no output on last transition => continue searching on `last path`
-                if last_output == None {
-                    current_state = tmp.last_child().expect(
-                        "state {current_state} expected to have child but didn't found one.",
-                    );
-                    continue;
-                }
-                //transition has output
-                //stop there
-                else {
-                    return Some(current_state);
+                match last_output.get_value_as_deref() {
+                    Some(_) => return Some(current_state),
+                    None => {
+                        current_state = tmp.last_child().expect(
+                            "state {current_state} expected to have child but didn't found one.",
+                        );
+                        continue;
+                    }
                 }
             //state doesn't have children
             } else {
@@ -249,8 +240,14 @@ impl Transducer {
     }
 
     /*
-     *insert value in the fst. last_state_index is the index of the last state reachable by invoking
-     *delta* on prefix of key
+     * insert value in the fst. last_state_index is the index of the last state reachable by invoking
+     * delta* on prefix of key.
+     *
+     * last_seen_final_state is an option containing the last reached final state during the
+     * computation of delta star given the common prefix of the current key.
+     *
+     * output is the output obtained by starting from q0 and processing delta star of the common
+     * prefix of the current key
      *
      * First walk the path from initial state to last_state. If no output is found then adding the value is as simple as
      * Taking the last outgoing transition from last_state and setting it's output to value
@@ -259,30 +256,37 @@ impl Transducer {
      * a prefix with value => in that case only the common prefix should be kept. The rest must be
      * propagated forward to all transitions (but the last one) of last_state.
      */
-    pub fn insert_value(&mut self, value: &[u8], last_state_index: usize) {
+    pub fn insert_value(
+        &mut self,
+        value: &[u8],
+        last_state_index: usize,
+        last_seen_final_state: Option<usize>,
+    ) {
         assert!(value.len() > 0);
 
-        //not sufficent. You may have to use subtraction on values even though the suffix doesn't
-        //start from a final state.
-        if self.states[last_state_index].is_final {
-            todo!();
+        //final state found on path.
+        //Start from that final_state
+        if let Some(final_state_index) = last_seen_final_state {
+            self.diff_propagation(final_state_index, last_state_index, value);
         }
+        //no final state on path to last state
+        else {
+            //output value present in the given path
+            if let Some(first_state_with_output) = self.first_output_on_path_to(last_state_index) {
+                //
+                let output_on_path =
+                    self.diff_propagation(first_state_with_output, last_state_index, value);
 
-        //output value present in the given path
-        if let Some(first_state_with_output) = self.first_output_on_path_to(last_state_index) {
-            //
-            let output_on_path =
-                self.diff_propagation(first_state_with_output, value, last_state_index);
+                let prefix_on_path_len = common_prefix_index(&output_on_path, value);
 
-            let prefix_on_path_len = common_prefix_index(&output_on_path, value);
-
-            //add value[prefix_len..] to last output of last state
-            let last_state = &mut self.states[last_state_index];
-            last_state.set_last_output(&value[prefix_on_path_len..], 0);
-        } else {
-            //add value to last output of last state
-            let last_state = &mut self.states[last_state_index];
-            last_state.set_last_output(&value, 0);
+                //add value[prefix_len..] to last output of last state
+                let last_state = &mut self.states[last_state_index];
+                last_state.set_last_output(&value[prefix_on_path_len..]);
+            } else {
+                //add value to last output of last state
+                let last_state = &mut self.states[last_state_index];
+                last_state.set_last_output(&value);
+            }
         }
     }
 
@@ -293,8 +297,8 @@ impl Transducer {
     fn diff_propagation(
         &mut self,
         first_state_index: usize,
-        value: &[u8],
         last_state_index: usize,
+        value: &[u8],
     ) -> Vec<u8> {
         assert!(first_state_index <= last_state_index);
 
@@ -319,18 +323,15 @@ impl Transducer {
             //Propagating would mean modifying the value associated with that final state (key)
             if !current_state.is_final {
                 current_state.propagate_new_prefix(diff.as_deref());
-            }
-            //current state is final
-            else {
-                todo!("subtraction needed!");
+            } else {
+                unreachable!("diff_propagation should never be called on a final state");
             }
 
             //Take last output.
             let current_last_output = current_state.get_last_output();
 
             //find common prefix between output and value
-            if let Some(output) = current_last_output {
-                //
+            if let Some(output) = current_last_output.get_value_as_deref() {
                 //output on last edge has some value. It is NOT None
                 let prefix_up_to = common_prefix_index(output, value);
                 diff = current_state.truncate_last_output(prefix_up_to);
@@ -340,8 +341,9 @@ impl Transducer {
 
             //update current state to last_child
             current_state_index = current_state.last_child().unwrap();
-            if let Some(s) = current_state.get_last_output() {
-                buff.append(&mut s.to_vec());
+            if let Some(s) = current_state.get_last_output().get_value_as_deref() {
+                //buff.append(&mut s.to_vec());
+                buff.extend_from_slice(s);
             }
         }
 
@@ -352,7 +354,7 @@ impl Transducer {
         last_state.propagate_prefix_exc_last(&diff);
 
         //add value to last output of last_state
-        last_state.set_last_output(value, 0);
+        last_state.set_last_output(value);
 
         return buff;
     }
@@ -379,26 +381,54 @@ impl Automaton for Transducer {
             .is_final
     }
 
-    fn delta_star(&self, state: usize, input_tape: &[u8]) -> Option<usize> {
+    //process input tape (key) and return output collected along the path to a final state.
+    //Returns None if no final state is reached or an error state is reached
+    fn get(&self, input_tape: &[u8]) -> Option<Vec<u8>> {
         assert!(self.states.len() > 0);
-        let mut current_state = state;
+
+        let mut current_state = 0;
+
+        let mut tmp: Vec<u8> = Vec::new();
+        let mut output: Vec<u8> = Vec::new();
 
         for byte in input_tape.iter() {
-            if let Some(new_state) = self.states[current_state].delta(*byte) {
+            let state = &self.states[current_state];
+
+            if state.is_final {
+                output = tmp;
+                tmp = Vec::new();
+            }
+
+            //let (new_state, tmp_value) = state.delta_with_output(*byte);
+
+            //there exists a transition from state with byte
+            if let Some(transition) = state.delta_with_output(*byte) {
+                let (new_state, tmp_value) = transition;
                 //move to new state
                 assert!(current_state != new_state);
                 current_state = new_state;
-            } else {
+
+                //process output of transition.
+                //Not all transitions have output associated with them
+                if let Some(v) = tmp_value.get_value_as_deref() {
+                    //if a value exists => extend final (possible) output with it
+                    tmp.extend(v);
+                }
+            }
+            //no outgoing transition from state with byte
+            else {
                 return None;
             }
         }
 
-        return Some(current_state);
-    }
-
-    #[inline]
-    fn delta_star_from_initial_state(&self, input_tape: &[u8]) -> Option<usize> {
-        self.delta_star(0, input_tape)
+        //if a final state was reached => return the value
+        if self.is_final_state(current_state) {
+            return Some(output);
+        }
+        //else return None => input_tape wasn't a valid key
+        else {
+            return None;
+        }
     }
 }
 

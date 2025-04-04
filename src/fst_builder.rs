@@ -6,6 +6,7 @@ use crate::{automaton::Automaton, fst::FstError};
 use core::result::Result;
 use std::fs::File;
 use std::io;
+use std::io::BufRead;
 use std::io::Write;
 
 pub fn build_transducer_from_collection(
@@ -33,9 +34,13 @@ pub fn build_transducer_from_collection(
         //compute delta* from initial state with the common prefix as input.
         //The reached state will be the one after which the suffix will be added.
         //Since the dataset is ordered, no other word will "touch" states that come after last_state.
-        let last_state_index = transducer
-            .delta_star_from_initial_state(prefix)
-            .expect(&format!("transitioned to err state after checking common prefix!\nWas processing {:?} and common prefix was {:?}.\nLast str is: {:?}", std::str::from_utf8(key).unwrap(), std::str::from_utf8(prefix).unwrap(), std::str::from_utf8(&collection[previous_key_i].0).unwrap()));
+        //let last_state_index = transducer
+        //    .delta_star_from_initial_state(prefix)
+        //    .expect(&format!("transitioned to err state after checking common prefix!\nWas processing {:?} and common prefix was {:?}.\nLast str is: {:?}", std::str::from_utf8(key).unwrap(), std::str::from_utf8(prefix).unwrap(), std::str::from_utf8(&collection[previous_key_i].0).unwrap()));
+        let (last_state_index, seen_final_state_index) =
+            transducer.delta_star_final_state(0, prefix);
+
+        let last_state_index = last_state_index.expect(&format!("transitioned to err state after checking common prefix!\nWas processing {:?} and common prefix was {:?}.\nLast str is: {:?}", std::str::from_utf8(key).unwrap(), std::str::from_utf8(prefix).unwrap(), std::str::from_utf8(&collection[previous_key_i].0).unwrap()));
 
         assert!(last_state_index < transducer.states.len());
 
@@ -48,8 +53,9 @@ pub fn build_transducer_from_collection(
         transducer.add_suffix_to_fsa(last_state_index, suffix);
 
         //insert current value associated with current key in the fst
-        transducer.insert_value(&value, last_state_index);
+        transducer.insert_value(&value, last_state_index, seen_final_state_index);
 
+        //update buffer containing last processed key
         transducer.update_last_key(key);
 
         previous_key_i = i;
@@ -58,6 +64,28 @@ pub fn build_transducer_from_collection(
     transducer.replace_or_register(0);
 
     return Ok(transducer);
+}
+
+//TODO
+//This should go inside the build function.
+//Its outermost loop should be this one.
+//The last Replace or register (q0) is run as soon as there's no lines left
+fn pairs_from_file(filename: &str) -> Result<Vec<(String, String)>, &str> {
+    let mut string_collection: Vec<(String, String)> = Vec::new();
+
+    if let Ok(lines) = read_lines(filename) {
+        for (i, line) in lines.filter(|x| x.is_ok()).enumerate() {
+            string_collection.push((line.expect("couldn't read line"), String::from("")));
+        }
+        return Ok(string_collection);
+    }
+    return Err("couldn't read lines");
+}
+
+fn read_lines(filename: &str) -> io::Result<io::Lines<io::BufReader<File>>> {
+    let file = File::open(filename)?;
+
+    Ok(io::BufReader::new(file).lines())
 }
 
 pub fn dump_graph(fst: &Transducer, file_path: &str) -> io::Result<()> {
@@ -109,6 +137,7 @@ pub fn dump_graph(fst: &Transducer, file_path: &str) -> io::Result<()> {
 #[cfg(test)]
 mod fst_builder_tests {
 
+    use crate::automaton::Automaton;
     use crate::fst_state::FstState;
 
     use super::build_transducer_from_collection;
@@ -142,12 +171,12 @@ mod fst_builder_tests {
         );
 
         let second_pair = (
-            String::from("colle").as_bytes().to_vec(),
+            String::from("pizza").as_bytes().to_vec(),
             String::from("ratto").as_bytes().to_vec(),
         );
 
         let third_pair = (
-            String::from("pizza").as_bytes().to_vec(),
+            String::from("pizzaiolo").as_bytes().to_vec(),
             String::from("zappa").as_bytes().to_vec(),
         );
 
@@ -181,9 +210,43 @@ mod fst_builder_tests {
             String::from("picciotto").as_bytes().to_vec(),
         );
 
-        let collection = vec![first_pair, second_pair, third_pair, fourth_pair];
+        let my_arr = [first_pair, second_pair, third_pair, fourth_pair];
+        let collection = my_arr.to_vec();
 
         let Ok(fst) = build_transducer_from_collection(collection);
+
+        for item in my_arr.iter() {
+            assert!(fst.get(&item.0).is_some());
+        }
+        //dump_graph(&fst, "fst.dot");
+    }
+
+    #[test]
+    fn merging_states_with_output() {
+        println!("-----------------------------\n\n");
+        let first_pair = (
+            String::from("suono").as_bytes().to_vec(),
+            String::from("gatto").as_bytes().to_vec(),
+        );
+
+        let second_pair = (
+            String::from("tuono").as_bytes().to_vec(),
+            String::from("ratto").as_bytes().to_vec(),
+        );
+
+        let third_pair = (
+            String::from("tzatziki").as_bytes().to_vec(),
+            String::from("romolo").as_bytes().to_vec(),
+        );
+
+        let my_arr = [first_pair, second_pair, third_pair];
+        let collection = my_arr.to_vec();
+
+        let Ok(fst) = build_transducer_from_collection(collection);
+
+        for item in my_arr.iter() {
+            assert!(fst.get(&item.0).is_some());
+        }
 
         dump_graph(&fst, "fst.dot");
     }

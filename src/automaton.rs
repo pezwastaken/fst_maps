@@ -1,8 +1,7 @@
 use crate::fst_state::TransitionOutput;
 
 pub trait Automaton {
-    fn delta_star_from_initial_state(&self, input_tape: &[u8]) -> Option<usize>;
-    fn delta_star(&self, state: usize, input_tape: &[u8]) -> Option<usize>;
+    fn get(&self, input_tape: &[u8]) -> Option<Vec<u8>>;
 
     fn is_final_state(&self, state: usize) -> bool;
 }

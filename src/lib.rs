@@ -190,19 +190,6 @@ mod tests {
     //helper functions
     //
 
-    //read a list of words from file and return the corresponding vector
-    fn collection_from_file(filename: &str) -> Result<Vec<String>, &str> {
-        let mut string_collection: Vec<String> = Vec::new();
-
-        if let Ok(lines) = read_lines(filename) {
-            for (i, line) in lines.filter(|x| x.is_ok()).enumerate() {
-                string_collection.push(line.expect("couldn't read line"));
-            }
-            return Ok(string_collection);
-        }
-        return Err("couldn't read lines");
-    }
-
     fn random_strings_from_collection(collection: &Vec<String>) -> Vec<String> {
         let mut res: Vec<String> = Vec::with_capacity(collection.len() * 3);
 
@@ -318,18 +305,5 @@ mod tests {
 
             //assert!(!fst.is_final_state(reached_state));
         }
-    }
-
-    //read a list of words from file and return the corresponding vector
-    fn collection_from_file_for_fst(filename: &str) -> Result<Vec<(String, String)>, &str> {
-        let mut string_collection: Vec<(String, String)> = Vec::new();
-
-        if let Ok(lines) = read_lines(filename) {
-            for (i, line) in lines.filter(|x| x.is_ok()).enumerate() {
-                string_collection.push((line.expect("couldn't read line"), String::from("")));
-            }
-            return Ok(string_collection);
-        }
-        return Err("couldn't read lines");
     }
 }
