@@ -127,15 +127,15 @@ impl FstState {
     pub fn truncate_last_output(&mut self, from: usize) -> Option<Vec<u8>> {
         assert_eq!(self.transitions.len(), self.outputs.len());
 
-        println!("called truncate_last_output on state: {:?}", self);
+        //println!("called truncate_last_output on state: {:?}", self);
 
-        println!("should truncate from char: {from}");
+        //println!("should truncate from char: {from}");
 
         if let Some(last_output_edge) = self.outputs.last_mut() {
             if last_output_edge.has_value() {
                 //truncate
                 let suffix: Vec<_> = last_output_edge.drain_value(from);
-                println!("after truncating state is: {:?}", self);
+                //println!("after truncating state is: {:?}", self);
 
                 if suffix.len() != 0 {
                     return Some(suffix);
@@ -151,11 +151,11 @@ impl FstState {
     }
 
     #[inline]
-    pub fn clear_last_output(&mut self) -> Vec<u8> {
+    pub fn clear_last_output(&mut self) -> Option<Vec<u8>> {
         assert_eq!(self.transitions.len(), self.outputs.len());
         if let Some(last_output_edge) = self.outputs.last_mut() {
             //take out the old value (to then return it) and replace it with None
-            return last_output_edge.take().unwrap();
+            return last_output_edge.take();
         } else {
             panic!("output vec is empty!");
         }
@@ -366,7 +366,7 @@ mod fst_state_unit_tests {
         state.add_transition(100, 1);
         state.set_last_output("ciao".as_bytes());
 
-        let old_out_vec = state.clear_last_output();
+        let old_out_vec = state.clear_last_output().unwrap();
         assert!(old_out_vec.len() == 4);
         assert_eq!(old_out_vec[0] as char, 'c');
         assert_eq!(old_out_vec[3] as char, 'o');

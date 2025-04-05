@@ -73,6 +73,7 @@ impl Transducer {
                 if output.has_value() {
                     let len_before_extend = tmp.len();
                     tmp.extend_from_slice(&output.get_value_unwrapped());
+                    //TODO output should never be Some but empty!
                     assert!(tmp.len() > len_before_extend);
                 }
 
@@ -159,7 +160,6 @@ impl Transducer {
     //assume state has children
     pub fn replace_or_register(&mut self, state_index: usize) {
         let state = &self.states[state_index];
-        assert!(state.has_children());
 
         //get the state `id` of the last outgoing transition from current state
         let child_index = state.last_child().unwrap();
@@ -342,7 +342,9 @@ impl Transducer {
             if !current_state.is_final {
                 current_state.propagate_new_prefix(diff.as_deref());
             } else {
-                unreachable!("diff_propagation should never be called on a final state");
+                if current_state_index != first_state_index {
+                    unreachable!("diff_propagation should never be called on a final state");
+                }
             }
 
             //Take last output.
@@ -352,7 +354,13 @@ impl Transducer {
             if let Some(output) = current_last_output.get_value_as_deref() {
                 //output on last edge has some value. It is NOT None
                 let prefix_up_to = common_prefix_index(output, value);
-                diff = current_state.truncate_last_output(prefix_up_to);
+
+                if prefix_up_to > 0 {
+                    diff = current_state.truncate_last_output(prefix_up_to);
+                } else {
+                    diff = current_state.clear_last_output();
+                }
+            //no output on edge
             } else {
                 diff = None;
             }

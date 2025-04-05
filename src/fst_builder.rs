@@ -78,13 +78,49 @@ impl Iterator for StringGenerator {
     }
 }
 
+struct FileReader<'a> {
+    //this will contain a line
+    buff: Vec<u8>,
+    reader: Option<io::BufReader<File>>,
+    filename: &'a str,
+}
+
+impl<'a> FileReader<'a> {
+    fn new(f: &'a str) -> Self {
+        Self {
+            buff: Vec::new(),
+            reader: None,
+            filename: f,
+        }
+    }
+
+    fn read_file(&mut self) {
+        let file = File::open(self.filename).expect("couldn't open given file");
+        self.reader = Some(io::BufReader::new(file));
+    }
+}
+
+//impl<'a> Iterator for FileReader<'a> {
+//    type Item = &'a [u8];
+//
+//    fn next(&mut self) -> Option<Self::Item> {
+//        self.buff.clear();
+//        let x = self.reader?.read_until(0x0A, &mut self.buff);
+//        match x {
+//            Ok(_) => Some(&self.buff),
+//            _ => None,
+//        }
+//    }
+//}
+
 //TODO empty files are not handled !?
-pub fn build_transducer_from_collection<T>(
+pub fn build_transducer_from_collection(
     //collection: Vec<(Vec<u8>, Vec<u8>)>,
-    input_stream: &mut T,
+    //input_stream: &mut T,
+    filename: &str,
 ) -> Result<Transducer, FstError>
-where
-    T: Iterator<Item = Vec<u8>>,
+//where
+    //T: Iterator<Item = Vec<u8>>,
 {
     let mut transducer = Transducer::new();
 
@@ -92,47 +128,50 @@ where
 
     assert_eq!(transducer.states.len(), 1);
 
-    for item in input_stream {
-        //if let Ok(lines) = read_lines(filename) {
-        //    for line in lines.filter(|x| x.is_ok()) {
-        //convert lines to bytes
-        let bytes: &[u8] = &item;
+    //for item in input_stream {
+    if let Ok(lines) = read_lines(filename) {
+        //for line in lines.filter(|x| x.is_ok()) {
+        for line in lines.map_while(Result::ok) {
+            //convert lines to bytes
+            let bytes: &[u8] = &line.as_bytes();
 
-        let (key, value): (&[u8], &[u8]) = parse_line(bytes).expect("No lines should be empty!");
+            let (key, value): (&[u8], &[u8]) =
+                parse_line(bytes).expect("No lines should be empty!");
 
-        //TODO
-        //add check on key
+            //TODO
+            //add check on key
 
-        //key common prefix len
-        let prefix_len = common_prefix_index(&transducer.last_key, &key);
+            //key common prefix len
+            let prefix_len = common_prefix_index(&transducer.last_key, &key);
 
-        //key common prefix
-        let prefix = &key[0..prefix_len];
+            //key common prefix
+            let prefix = &key[0..prefix_len];
 
-        //compute delta* from initial state with the common prefix as input.
-        //The reached state will be the one after which the suffix will be added.
-        //Since the dataset is ordered, no other word will "touch" states that come after last_state.
-        let (last_state_index, seen_final_state_index) =
-            transducer.delta_star_final_state(0, prefix);
+            //compute delta* from initial state with the common prefix as input.
+            //The reached state will be the one after which the suffix will be added.
+            //Since the dataset is ordered, no other word will "touch" states that come after last_state.
+            let (last_state_index, seen_final_state_index) =
+                transducer.delta_star_final_state(0, prefix);
 
-        let last_state_index = last_state_index.expect(
-            "should never reach an error state by reading the prefix of an already added key",
-        );
+            let last_state_index = last_state_index.expect(
+                "should never reach an error state by reading the prefix of an already added key",
+            );
 
-        assert!(last_state_index < transducer.states.len());
+            assert!(last_state_index < transducer.states.len());
 
-        let last_state = &transducer.states[last_state_index];
-        if last_state.has_children() {
-            transducer.replace_or_register(last_state_index);
+            let last_state = &transducer.states[last_state_index];
+            if last_state.has_children() {
+                transducer.replace_or_register(last_state_index);
+            }
+
+            transducer.insert_pair(
+                key,
+                value,
+                prefix_len,
+                last_state_index,
+                seen_final_state_index,
+            );
         }
-
-        transducer.insert_pair(
-            key,
-            value,
-            prefix_len,
-            last_state_index,
-            seen_final_state_index,
-        );
     }
 
     transducer.replace_or_register(0);
@@ -216,6 +255,7 @@ pub fn dump_graph(fst: &Transducer, file_path: &str) -> io::Result<()> {
 #[cfg(test)]
 mod fst_builder_tests {
 
+    use std::io::BufRead;
     use std::rc::Rc;
 
     use rand::Rng;
@@ -243,61 +283,64 @@ mod fst_builder_tests {
     //}
     //
     //
+    //#[test]
+    //fn random_strings_1() {
+    //    let n = 5;
+    //
+    //    let mut generator = StringGenerator::new(n, 50, 50, '/' as u8);
+    //
+    //    //let Ok(fst) = build_transducer_from_collection(&mut generator);
+    //
+    //    //ensure_all_pairs(&fst, &filename);
+    //
+    //    //dump_graph(&fst, "fst.dot");
+    //}
+
+    //#[test]
+    //fn random_strings_2() {
+    //    let n = 20;
+    //
+    //    let mut generator = StringGenerator::new(n, 25, 25, '/' as u8);
+    //
+    //    //let Ok(fst) = build_transducer_from_collection(&mut generator);
+    //
+    //    //ensure_all_pairs(&fst, &filename);
+    //
+    //    //dump_graph(&fst, "fst.dot");
+    //}
+
     #[test]
-    fn random_strings_1() {
-        let n = 5;
-
-        let mut generator = StringGenerator::new(n, 50, 50, '/' as u8);
-
-        let Ok(fst) = build_transducer_from_collection(&mut generator);
-
-        //ensure_all_pairs(&fst, &filename);
-
-        //dump_graph(&fst, "fst.dot");
-    }
-
-    #[test]
-    fn random_strings_2() {
-        let n = 20;
-
-        let mut generator = StringGenerator::new(n, 25, 25, '/' as u8);
-
-        let Ok(fst) = build_transducer_from_collection(&mut generator);
-
-        //ensure_all_pairs(&fst, &filename);
+    fn file_100() {
+        let Ok(fst) = build_transducer_from_collection("maps/100.txt");
 
         dump_graph(&fst, "fst.dot");
+
+        ensure_all_pairs(&fst, "maps/100.txt");
     }
-
-    //#[test]
-    //fn file_1() {
-    //    let filename = "maps/100.txt";
-    //    let Ok(fst) = build_transducer_from_collection(&filename);
-    //
-    //    ensure_all_pairs(&fst, &filename);
-    //
-    //    dump_graph(&fst, "fst.dot");
-    //}
-
-    //#[test]
-    //fn x() {
-    //    println!("random str: {:?}", gen_random_pair(10, 10, '/' as u8));
-    //}
 
     fn ensure_all_pairs(fst: &Transducer, filename: &str) {
         if let Ok(lines) = read_lines(filename) {
-            for line in lines.filter(|x| x.is_ok()) {
+            for line in lines.map_while(Result::ok) {
                 //convert lines to bytes
-                let bytes: &[u8] = &line.as_ref().unwrap().as_bytes();
+                let bytes: &[u8] = &line.as_bytes();
 
                 let (key, value): (&[u8], &[u8]) =
                     parse_line(bytes).expect("No lines should be empty!");
+
+                println!(
+                    "ensuring key: {} | has value: {}",
+                    std::str::from_utf8(key).unwrap(),
+                    std::str::from_utf8(value).unwrap()
+                );
 
                 //get value back from fst
                 let value_from_fst = fst.get(&key);
                 assert!(value_from_fst.is_some());
 
-                assert_eq!(value, &value_from_fst.unwrap());
+                assert_eq!(
+                    std::str::from_utf8(value).unwrap(),
+                    std::str::from_utf8(&value_from_fst.unwrap()).unwrap()
+                );
             }
         } else {
             panic!("couldn't open file {filename}");
