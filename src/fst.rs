@@ -114,6 +114,8 @@ impl Transducer {
         let suffix = &key[key_prefix_len..];
         self.add_suffix_to_fsa(from_state, suffix);
 
+        println!("suffix of key is: {}", std::str::from_utf8(suffix).unwrap());
+
         //insert current value associated with current key in the fst
         self.insert_value(&value, from_state, seen_final_state);
 
@@ -292,14 +294,14 @@ impl Transducer {
             //output value present in the given path
             if let Some(first_state_with_output) = self.first_output_on_path_to(last_state_index) {
                 //
-                let output_on_path =
-                    self.diff_propagation(first_state_with_output, last_state_index, value);
 
-                let prefix_on_path_len = common_prefix_index(&output_on_path, value);
+                self.diff_propagation(first_state_with_output, last_state_index, value);
+
+                //let prefix_on_path_len = common_prefix_index(&output_on_path, value);
 
                 //add value[prefix_len..] to last output of last state
-                let last_state = &mut self.states[last_state_index];
-                last_state.set_last_output(&value[prefix_on_path_len..]);
+                //let last_state = &mut self.states[last_state_index];
+                //last_state.set_last_output(&value[prefix_on_path_len..]);
             } else {
                 //add value to last output of last state
                 let last_state = &mut self.states[last_state_index];
@@ -317,7 +319,8 @@ impl Transducer {
         first_state_index: usize,
         last_state_index: usize,
         value: &[u8],
-    ) -> Vec<u8> {
+        //) -> Vec<u8> {
+    ) {
         assert!(first_state_index <= last_state_index);
 
         //get a mut reference to next state (last child)
@@ -327,11 +330,11 @@ impl Transducer {
 
         //this buff will be used to keep track of what output is encountered by walking the path
         //from first_state_index up to last_state.
-        let mut buff: Vec<u8> = Vec::with_capacity(value.len());
+        //let mut buff: Vec<u8> = Vec::with_capacity(value.len());
 
         let mut trimmed_characters = 0;
 
-        let mut f = true;
+        let mut done_with_prefix = false;
 
         println!("\ndiff propagation with value: {}", bytes_to_utf8(value));
 
@@ -359,15 +362,26 @@ impl Transducer {
             //find common prefix between output and value
             if let Some(output) = current_last_output.get_value_as_deref() {
                 //output on last edge has some value. It is NOT None
-                let prefix_up_to = common_prefix_index(output, value);
+
+                let prefix_up_to: usize;
+                if !done_with_prefix {
+                    prefix_up_to = common_prefix_index(output, &value[trimmed_characters..]);
+                } else {
+                    prefix_up_to = 0;
+                }
+
+                trimmed_characters += prefix_up_to;
+
                 let output_len = output.len();
+
+                //whenever the first diff is found we stop computing prefix between value and edge
+                //output.
+                if prefix_up_to < output_len {
+                    done_with_prefix = true;
+                }
 
                 println!("state {current_state_index}");
                 println!("\toutput on edge: {}", bytes_to_utf8(output));
-
-                if f {
-                    trimmed_characters += prefix_up_to;
-                }
 
                 if prefix_up_to > 0 {
                     diff = current_state.truncate_last_output(prefix_up_to);
@@ -382,13 +396,6 @@ impl Transducer {
                     );
                 }
 
-                if prefix_up_to < output_len && f {
-                    f = false;
-                    println!(
-                        "stopped counting trim characters. should trim the first {trimmed_characters} from value"
-                    );
-                }
-
             //no output on edge
             } else {
                 diff = None;
@@ -396,9 +403,9 @@ impl Transducer {
 
             //update current state to last_child
             current_state_index = current_state.last_child().unwrap();
-            if let Some(s) = current_state.get_last_output().get_value_as_deref() {
-                buff.extend_from_slice(s);
-            }
+            //if let Some(s) = current_state.get_last_output().get_value_as_deref() {
+            //    buff.extend_from_slice(s);
+            //}
             println!();
         }
 
@@ -408,17 +415,10 @@ impl Transducer {
         let last_state = &mut self.states[last_state_index];
         last_state.propagate_prefix_exc_last(&diff);
 
-        if value == "wrongvmer".as_bytes() {
-            println!(
-                "value (with trimmed characters): {}",
-                std::str::from_utf8(&value[trimmed_characters..]).unwrap()
-            );
-        }
-
         //add value to last output of last_state
         last_state.set_last_output(&value[trimmed_characters..]);
 
-        return buff;
+        //return buff;
     }
 
     /*

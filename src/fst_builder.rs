@@ -138,6 +138,9 @@ pub fn build_transducer_from_collection(
             let (key, value): (&[u8], &[u8]) =
                 parse_line(bytes).expect("No lines should be empty!");
 
+            dbg!(std::str::from_utf8(key));
+            dbg!(std::str::from_utf8(value));
+
             //TODO
             //add check on key
 
@@ -146,6 +149,11 @@ pub fn build_transducer_from_collection(
 
             //key common prefix
             let prefix = &key[0..prefix_len];
+
+            println!(
+                "prefix with previous word is: {}",
+                std::str::from_utf8(prefix).unwrap()
+            );
 
             //compute delta* from initial state with the common prefix as input.
             //The reached state will be the one after which the suffix will be added.
@@ -276,7 +284,7 @@ mod fst_builder_tests {
     fn file_5() {
         let Ok(fst) = build_transducer_from_collection("maps/5.txt");
 
-        dump_graph(&fst, "fst.dot");
+        //dump_graph(&fst, "fst.dot");
 
         ensure_all_pairs(&fst, "maps/5.txt");
     }
@@ -294,7 +302,7 @@ mod fst_builder_tests {
     fn file_300() {
         let Ok(fst) = build_transducer_from_collection("maps/300.txt");
 
-        dump_graph(&fst, "fst.dot");
+        //dump_graph(&fst, "fst.dot");
 
         ensure_all_pairs(&fst, "maps/300.txt");
     }
@@ -306,6 +314,33 @@ mod fst_builder_tests {
         //dump_graph(&fst, "fst.dot");
 
         ensure_all_pairs(&fst, "maps/1000.txt");
+    }
+
+    #[test]
+    fn file_1000_2() {
+        let Ok(fst) = build_transducer_from_collection("maps/1000_2.txt");
+
+        //dump_graph(&fst, "fst.dot");
+
+        ensure_all_pairs(&fst, "maps/1000_2.txt");
+    }
+
+    #[test]
+    fn file_3000_random_values() {
+        let Ok(fst) = build_transducer_from_collection("maps/3000_rand.txt");
+
+        //dump_graph(&fst, "fst.dot");
+
+        ensure_all_pairs(&fst, "maps/3000_rand.txt");
+    }
+
+    #[test]
+    fn file_5000_altered() {
+        let Ok(fst) = build_transducer_from_collection("maps/5000_a.txt");
+
+        //dump_graph(&fst, "fst.dot");
+
+        ensure_all_pairs(&fst, "maps/5000_a.txt");
     }
 
     fn ensure_all_pairs(fst: &Transducer, filename: &str) {
