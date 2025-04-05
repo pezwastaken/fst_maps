@@ -335,8 +335,21 @@ pub(crate) fn common_prefix_index(previous_str: &[u8], y: &[u8]) -> usize {
         .take_while(|(x, y)| x == y)
         .count();
 
+    if y == "wrongvmer".as_bytes() {
+        println!(
+            "prefix between {} and {} is: {}",
+            bytes_to_utf8(previous_str),
+            bytes_to_utf8(y),
+            bytes_to_utf8(&previous_str[..prefix_len])
+        );
+    }
+
     assert!(prefix_len <= y.len());
     return prefix_len;
+}
+
+pub fn bytes_to_utf8(bytes: &[u8]) -> &str {
+    return std::str::from_utf8(bytes).unwrap();
 }
 
 pub fn common_prefix<'a>(previous_str: &'a [u8], y: &'a [u8]) -> &'a [u8] {
@@ -361,6 +374,90 @@ pub fn common_prefix<'a>(previous_str: &'a [u8], y: &'a [u8]) -> &'a [u8] {
 mod fst_state_unit_tests {
     use super::AutomatonState;
     use super::FstState;
+    use super::TransitionOutput;
+
+    #[test]
+    fn output_eq_1() {
+        let t_out_1 = TransitionOutput::new_with_value("ciao".as_bytes().into());
+        let t_out_2 = TransitionOutput::new_with_value("ciao".as_bytes().into());
+
+        assert!(t_out_1.eq(&t_out_2));
+    }
+
+    #[test]
+    fn output_eq_2() {
+        let t_out_1 = TransitionOutput::new_with_value("cia".as_bytes().into());
+        let t_out_2 = TransitionOutput::new_with_value("cza".as_bytes().into());
+
+        assert_ne!(t_out_1, t_out_2);
+    }
+
+    #[test]
+    fn state_eq_1() {
+        let mut state_1 = FstState::new();
+
+        state_1.add_transition(100, 1);
+        state_1.set_last_output("ciao".as_bytes());
+        state_1.add_transition(102, 2);
+        state_1.set_last_output("topo".as_bytes());
+        state_1.add_transition(103, 3);
+        state_1.set_last_output("pizza".as_bytes());
+
+        let mut state_2 = FstState::new();
+
+        state_2.add_transition(100, 1);
+        state_2.set_last_output("ciao".as_bytes());
+        state_2.add_transition(102, 2);
+        state_2.set_last_output("topo".as_bytes());
+        state_2.add_transition(103, 3);
+        state_2.set_last_output("pizza".as_bytes());
+
+        assert_eq!(state_1, state_2);
+    }
+
+    #[test]
+    fn state_eq_2() {
+        let mut state_1 = FstState::new();
+
+        state_1.add_transition(100, 1);
+        state_1.set_last_output("ciao".as_bytes());
+        state_1.add_transition(102, 2);
+        state_1.set_last_output("topo".as_bytes());
+        state_1.add_transition(103, 3);
+        state_1.set_last_output("pizza".as_bytes());
+
+        let mut state_2 = FstState::new();
+
+        state_2.add_transition(100, 1);
+        state_2.set_last_output("ciao".as_bytes());
+        state_2.add_transition(102, 2);
+        state_2.set_last_output("top".as_bytes());
+        state_2.add_transition(103, 3);
+        state_2.set_last_output("pizza".as_bytes());
+
+        assert_ne!(state_1, state_2);
+    }
+
+    #[test]
+    fn state_eq_3() {
+        let mut state_1 = FstState::new();
+
+        state_1.add_transition(100, 1);
+        state_1.set_last_output("ciao".as_bytes());
+        state_1.add_transition(102, 2);
+        state_1.set_last_output("topo".as_bytes());
+        state_1.add_transition(103, 3);
+        state_1.set_last_output("pizza".as_bytes());
+
+        let mut state_2 = FstState::new();
+
+        state_2.add_transition(100, 1);
+        state_2.set_last_output("ciao".as_bytes());
+        state_2.add_transition(102, 2);
+        state_2.set_last_output("topo".as_bytes());
+
+        assert_ne!(state_1, state_2);
+    }
 
     #[test]
     fn prefix_len() {

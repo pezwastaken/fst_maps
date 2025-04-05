@@ -272,50 +272,40 @@ mod fst_builder_tests {
     use super::parse_line;
     use super::read_lines;
 
-    //#[test]
-    //fn small_file() {
-    //    let filename = "maps/5.txt";
-    //    //let Ok(fst) = build_transducer_from_collection(&filename);
-    //
-    //    //ensure_all_pairs(&fst, &filename);
-    //    //
-    //    //dump_graph(&fst, "fst.dot");
-    //}
-    //
-    //
-    //#[test]
-    //fn random_strings_1() {
-    //    let n = 5;
-    //
-    //    let mut generator = StringGenerator::new(n, 50, 50, '/' as u8);
-    //
-    //    //let Ok(fst) = build_transducer_from_collection(&mut generator);
-    //
-    //    //ensure_all_pairs(&fst, &filename);
-    //
-    //    //dump_graph(&fst, "fst.dot");
-    //}
+    #[test]
+    fn file_5() {
+        let Ok(fst) = build_transducer_from_collection("maps/5.txt");
 
-    //#[test]
-    //fn random_strings_2() {
-    //    let n = 20;
-    //
-    //    let mut generator = StringGenerator::new(n, 25, 25, '/' as u8);
-    //
-    //    //let Ok(fst) = build_transducer_from_collection(&mut generator);
-    //
-    //    //ensure_all_pairs(&fst, &filename);
-    //
-    //    //dump_graph(&fst, "fst.dot");
-    //}
+        dump_graph(&fst, "fst.dot");
+
+        ensure_all_pairs(&fst, "maps/5.txt");
+    }
 
     #[test]
     fn file_100() {
         let Ok(fst) = build_transducer_from_collection("maps/100.txt");
 
-        dump_graph(&fst, "fst.dot");
+        //dump_graph(&fst, "fst.dot");
 
         ensure_all_pairs(&fst, "maps/100.txt");
+    }
+
+    #[test]
+    fn file_300() {
+        let Ok(fst) = build_transducer_from_collection("maps/300.txt");
+
+        dump_graph(&fst, "fst.dot");
+
+        ensure_all_pairs(&fst, "maps/300.txt");
+    }
+
+    #[test]
+    fn file_1000() {
+        let Ok(fst) = build_transducer_from_collection("maps/1000.txt");
+
+        //dump_graph(&fst, "fst.dot");
+
+        ensure_all_pairs(&fst, "maps/1000.txt");
     }
 
     fn ensure_all_pairs(fst: &Transducer, filename: &str) {
@@ -327,11 +317,11 @@ mod fst_builder_tests {
                 let (key, value): (&[u8], &[u8]) =
                     parse_line(bytes).expect("No lines should be empty!");
 
-                println!(
-                    "ensuring key: {} | has value: {}",
-                    std::str::from_utf8(key).unwrap(),
-                    std::str::from_utf8(value).unwrap()
-                );
+                //println!(
+                //    "ensuring key: {} | has value: {}",
+                //    std::str::from_utf8(key).unwrap(),
+                //    std::str::from_utf8(value).unwrap()
+                //);
 
                 //get value back from fst
                 let value_from_fst = fst.get(&key);

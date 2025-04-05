@@ -1,6 +1,6 @@
 use crate::{
     automaton::{Automaton, AutomatonState},
-    fst_state::{FstState, common_prefix_index},
+    fst_state::{FstState, bytes_to_utf8, common_prefix_index},
     register::{REGISTER_CAPACITY, REGISTER_COUNT_MASK, Register},
 };
 
@@ -329,6 +329,12 @@ impl Transducer {
         //from first_state_index up to last_state.
         let mut buff: Vec<u8> = Vec::with_capacity(value.len());
 
+        let mut trimmed_characters = 0;
+
+        let mut f = true;
+
+        println!("\ndiff propagation with value: {}", bytes_to_utf8(value));
+
         //while loop until current state != last_state
         while current_state_index != last_state_index {
             //
@@ -354,12 +360,35 @@ impl Transducer {
             if let Some(output) = current_last_output.get_value_as_deref() {
                 //output on last edge has some value. It is NOT None
                 let prefix_up_to = common_prefix_index(output, value);
+                let output_len = output.len();
+
+                println!("state {current_state_index}");
+                println!("\toutput on edge: {}", bytes_to_utf8(output));
+
+                if f {
+                    trimmed_characters += prefix_up_to;
+                }
 
                 if prefix_up_to > 0 {
                     diff = current_state.truncate_last_output(prefix_up_to);
                 } else {
                     diff = current_state.clear_last_output();
                 }
+
+                if diff.is_some() {
+                    println!(
+                        "\tdiff to propagate: {}",
+                        bytes_to_utf8(&diff.as_ref().unwrap())
+                    );
+                }
+
+                if prefix_up_to < output_len && f {
+                    f = false;
+                    println!(
+                        "stopped counting trim characters. should trim the first {trimmed_characters} from value"
+                    );
+                }
+
             //no output on edge
             } else {
                 diff = None;
@@ -368,9 +397,9 @@ impl Transducer {
             //update current state to last_child
             current_state_index = current_state.last_child().unwrap();
             if let Some(s) = current_state.get_last_output().get_value_as_deref() {
-                //buff.append(&mut s.to_vec());
                 buff.extend_from_slice(s);
             }
+            println!();
         }
 
         //Now propagate diff to ALL edges EXCEPT last one. Diff will be prepended to their
@@ -379,8 +408,15 @@ impl Transducer {
         let last_state = &mut self.states[last_state_index];
         last_state.propagate_prefix_exc_last(&diff);
 
+        if value == "wrongvmer".as_bytes() {
+            println!(
+                "value (with trimmed characters): {}",
+                std::str::from_utf8(&value[trimmed_characters..]).unwrap()
+            );
+        }
+
         //add value to last output of last_state
-        last_state.set_last_output(value);
+        last_state.set_last_output(&value[trimmed_characters..]);
 
         return buff;
     }
