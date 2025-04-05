@@ -1,6 +1,6 @@
 use crate::automaton::AutomatonState;
 
-#[derive(Hash, Debug)]
+#[derive(Hash, Debug, PartialEq)]
 pub struct TransitionOutput {
     value: Option<Vec<u8>>,
 }
@@ -55,6 +55,7 @@ impl TransitionOutput {
         return self.value.take();
     }
 }
+
 #[derive(Debug, Hash)]
 pub struct FstState {
     //id: usize,
@@ -205,6 +206,33 @@ impl FstState {
             }
         }
     }
+
+    fn are_transitions_equal(&self, other_state: &Self) -> bool {
+        let self_transitions = &self.transitions;
+        let other_state_transitions = &other_state.transitions;
+
+        //actually check transitions
+        //compare char of transition 1 with char of transition 2
+        //same thing with destination states
+        let all_transitions_equal = self_transitions
+            .iter()
+            .zip(other_state_transitions)
+            .all(|((char1, state1), (char2, state2))| (*char1 == *char2) && (*state1 == *state2));
+
+        return all_transitions_equal;
+    }
+
+    fn are_outputs_equal(&self, other_state: &FstState) -> bool {
+        let self_outputs = &self.outputs;
+        let other_state_outputs = &other_state.outputs;
+
+        let all_transitions_equal = self_outputs
+            .iter()
+            .zip(other_state_outputs)
+            .all(|(t1, t2)| t1.eq(t2));
+
+        return all_transitions_equal;
+    }
 }
 
 impl AutomatonState for FstState {
@@ -288,18 +316,11 @@ impl PartialEq for FstState {
             false => (),
         }
 
-        let self_transitions = &self.transitions;
-        let other_state_transitions = &other_state.transitions;
+        let transitions_equal = self.are_transitions_equal(other_state);
 
-        //actually check transitions
-        //compare char of transition 1 with char of transition 2
-        //same thing with destination states
-        let all_transitions_equal = self_transitions
-            .iter()
-            .zip(other_state_transitions)
-            .all(|((char1, state1), (char2, state2))| (*char1 == *char2) && (*state1 == *state2));
+        let outputs_equal = self.are_outputs_equal(other_state);
 
-        return all_transitions_equal;
+        return transitions_equal && outputs_equal;
     }
 }
 
