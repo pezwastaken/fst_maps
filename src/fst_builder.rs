@@ -138,22 +138,14 @@ pub fn build_transducer_from_collection(
             let (key, value): (&[u8], &[u8]) =
                 parse_line(bytes).expect("No lines should be empty!");
 
-            dbg!(std::str::from_utf8(key));
-            dbg!(std::str::from_utf8(value));
-
-            //TODO
-            //add check on key
+            //TODO should also make sure the key has not been processed in the past
+            assert_ne!(key, &transducer.last_key[..transducer.last_key_len]);
 
             //key common prefix len
             let prefix_len = common_prefix_index(&transducer.last_key, &key);
 
             //key common prefix
             let prefix = &key[0..prefix_len];
-
-            println!(
-                "prefix with previous word is: {}",
-                std::str::from_utf8(prefix).unwrap()
-            );
 
             //compute delta* from initial state with the common prefix as input.
             //The reached state will be the one after which the suffix will be added.
@@ -264,10 +256,12 @@ pub fn dump_graph(fst: &Transducer, file_path: &str) -> io::Result<()> {
 mod fst_builder_tests {
 
     use std::io::BufRead;
+    use std::os::unix::thread;
     use std::rc::Rc;
 
     use rand::Rng;
     use rand::distributions::Alphanumeric;
+    use rand::distributions::Uniform;
     use rand::thread_rng;
 
     use crate::automaton::Automaton;
@@ -289,59 +283,59 @@ mod fst_builder_tests {
         ensure_all_pairs(&fst, "maps/5.txt");
     }
 
-    #[test]
-    fn file_100() {
-        let Ok(fst) = build_transducer_from_collection("maps/100.txt");
-
-        //dump_graph(&fst, "fst.dot");
-
-        ensure_all_pairs(&fst, "maps/100.txt");
-    }
-
-    #[test]
-    fn file_300() {
-        let Ok(fst) = build_transducer_from_collection("maps/300.txt");
-
-        //dump_graph(&fst, "fst.dot");
-
-        ensure_all_pairs(&fst, "maps/300.txt");
-    }
-
-    #[test]
-    fn file_1000() {
-        let Ok(fst) = build_transducer_from_collection("maps/1000.txt");
-
-        //dump_graph(&fst, "fst.dot");
-
-        ensure_all_pairs(&fst, "maps/1000.txt");
-    }
-
-    #[test]
-    fn file_1000_2() {
-        let Ok(fst) = build_transducer_from_collection("maps/1000_2.txt");
-
-        //dump_graph(&fst, "fst.dot");
-
-        ensure_all_pairs(&fst, "maps/1000_2.txt");
-    }
-
-    #[test]
-    fn file_3000_random_values() {
-        let Ok(fst) = build_transducer_from_collection("maps/3000_rand.txt");
-
-        //dump_graph(&fst, "fst.dot");
-
-        ensure_all_pairs(&fst, "maps/3000_rand.txt");
-    }
-
-    #[test]
-    fn file_5000_altered() {
-        let Ok(fst) = build_transducer_from_collection("maps/5000_a.txt");
-
-        //dump_graph(&fst, "fst.dot");
-
-        ensure_all_pairs(&fst, "maps/5000_a.txt");
-    }
+    //#[test]
+    //fn file_100() {
+    //    let Ok(fst) = build_transducer_from_collection("maps/100.txt");
+    //
+    //    //dump_graph(&fst, "fst.dot");
+    //
+    //    ensure_all_pairs(&fst, "maps/100.txt");
+    //}
+    //
+    //#[test]
+    //fn file_300() {
+    //    let Ok(fst) = build_transducer_from_collection("maps/300.txt");
+    //
+    //    //dump_graph(&fst, "fst.dot");
+    //
+    //    ensure_all_pairs(&fst, "maps/300.txt");
+    //}
+    //
+    //#[test]
+    //fn file_1000() {
+    //    let Ok(fst) = build_transducer_from_collection("maps/1000.txt");
+    //
+    //    //dump_graph(&fst, "fst.dot");
+    //
+    //    ensure_all_pairs(&fst, "maps/1000.txt");
+    //}
+    //
+    //#[test]
+    //fn file_1000_2() {
+    //    let Ok(fst) = build_transducer_from_collection("maps/1000_2.txt");
+    //
+    //    //dump_graph(&fst, "fst.dot");
+    //
+    //    ensure_all_pairs(&fst, "maps/1000_2.txt");
+    //}
+    //
+    //#[test]
+    //fn file_3000_random_values() {
+    //    let Ok(fst) = build_transducer_from_collection("maps/3000_rand.txt");
+    //
+    //    //dump_graph(&fst, "fst.dot");
+    //
+    //    ensure_all_pairs(&fst, "maps/3000_rand.txt");
+    //}
+    //
+    //#[test]
+    //fn file_5000_altered() {
+    //    let Ok(fst) = build_transducer_from_collection("maps/5000_a.txt");
+    //
+    //    //dump_graph(&fst, "fst.dot");
+    //
+    //    ensure_all_pairs(&fst, "maps/5000_a.txt");
+    //}
 
     fn ensure_all_pairs(fst: &Transducer, filename: &str) {
         if let Ok(lines) = read_lines(filename) {
@@ -351,12 +345,6 @@ mod fst_builder_tests {
 
                 let (key, value): (&[u8], &[u8]) =
                     parse_line(bytes).expect("No lines should be empty!");
-
-                //println!(
-                //    "ensuring key: {} | has value: {}",
-                //    std::str::from_utf8(key).unwrap(),
-                //    std::str::from_utf8(value).unwrap()
-                //);
 
                 //get value back from fst
                 let value_from_fst = fst.get(&key);

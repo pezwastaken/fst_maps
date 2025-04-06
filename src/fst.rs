@@ -114,7 +114,7 @@ impl Transducer {
         let suffix = &key[key_prefix_len..];
         self.add_suffix_to_fsa(from_state, suffix);
 
-        println!("suffix of key is: {}", std::str::from_utf8(suffix).unwrap());
+        //println!("suffix of key is: {}", std::str::from_utf8(suffix).unwrap());
 
         //insert current value associated with current key in the fst
         self.insert_value(&value, from_state, seen_final_state);
@@ -336,7 +336,7 @@ impl Transducer {
 
         let mut done_with_prefix = false;
 
-        println!("\ndiff propagation with value: {}", bytes_to_utf8(value));
+        //println!("\ndiff propagation with value: {}", bytes_to_utf8(value));
 
         //while loop until current state != last_state
         while current_state_index != last_state_index {
@@ -380,8 +380,8 @@ impl Transducer {
                     done_with_prefix = true;
                 }
 
-                println!("state {current_state_index}");
-                println!("\toutput on edge: {}", bytes_to_utf8(output));
+                //println!("state {current_state_index}");
+                //println!("\toutput on edge: {}", bytes_to_utf8(output));
 
                 if prefix_up_to > 0 {
                     diff = current_state.truncate_last_output(prefix_up_to);
@@ -389,14 +389,14 @@ impl Transducer {
                     diff = current_state.clear_last_output();
                 }
 
-                if diff.is_some() {
-                    println!(
-                        "\tdiff to propagate: {}",
-                        bytes_to_utf8(&diff.as_ref().unwrap())
-                    );
-                }
+                //if diff.is_some() {
+                //    println!(
+                //        "\tdiff to propagate: {}",
+                //        bytes_to_utf8(&diff.as_ref().unwrap())
+                //    );
+                //}
 
-            //no output on edge
+                //no output on edge
             } else {
                 diff = None;
             }
@@ -406,7 +406,6 @@ impl Transducer {
             //if let Some(s) = current_state.get_last_output().get_value_as_deref() {
             //    buff.extend_from_slice(s);
             //}
-            println!();
         }
 
         //Now propagate diff to ALL edges EXCEPT last one. Diff will be prepended to their
@@ -430,7 +429,7 @@ impl Transducer {
         self.clear_last_key();
 
         self.last_key_len = word_len;
-        self.last_key[..word_len].copy_from_slice(&new_key[..word_len]);
+        self.last_key[..word_len].copy_from_slice(&new_key[..]);
     }
 }
 

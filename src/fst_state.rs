@@ -335,15 +335,6 @@ pub(crate) fn common_prefix_index(previous_str: &[u8], y: &[u8]) -> usize {
         .take_while(|(x, y)| x == y)
         .count();
 
-    if y == "wrongvmer".as_bytes() {
-        println!(
-            "prefix between {} and {} is: {}",
-            bytes_to_utf8(previous_str),
-            bytes_to_utf8(y),
-            bytes_to_utf8(&previous_str[..prefix_len])
-        );
-    }
-
     assert!(prefix_len <= y.len());
     return prefix_len;
 }
