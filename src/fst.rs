@@ -1,18 +1,20 @@
 use crate::{
     automaton::{Automaton, AutomatonState},
-    fst_state::{FstState, bytes_to_utf8, common_prefix_index},
-    register::{REGISTER_CAPACITY, REGISTER_COUNT_MASK, Register},
+    fst_state::{FstState, common_prefix_index},
+    register::Register,
 };
+
+type States = Vec<FstState>;
 
 #[derive(Debug)]
 pub struct Transducer {
-    pub states: Vec<FstState>,
+    pub states: States,
     pub last_key: [u8; 100],
     pub last_key_len: usize,
     pub last_value: [u8; 100],
     pub last_value_len: usize,
     //cache: Dictionary,
-    pub register: Register,
+    register: Register,
 }
 
 impl Transducer {
@@ -23,10 +25,7 @@ impl Transducer {
             last_key_len: 0,
             last_value: [0; 100],
             last_value_len: 0,
-            register: Register {
-                elements: [0; REGISTER_CAPACITY],
-                count: 0,
-            },
+            register: Register::new(),
         }
     }
 
@@ -174,6 +173,17 @@ impl Transducer {
         if let Some(state_to_merge_with) = self.register_contains_equivalent(child_index) {
             //
             //now get a mutable reference to the state who's child is to be merged
+
+            {
+                let tmp1 = &self.states[child_index];
+                let tmp2 = &self.states[state_to_merge_with];
+                assert_eq!(tmp1, tmp2);
+
+                //dbg!(&tmp1);
+                //println!("equivalent to:");
+                //dbg!(&tmp2);
+            }
+
             let current_state = &mut self.states[state_index];
 
             //merge last child
@@ -181,38 +191,28 @@ impl Transducer {
 
             self.states.pop();
         } else {
-            self.register.add_state(child_index);
+            let child = &self.states[child_index];
+            self.register.add_state(child, child_index);
         }
+        println!();
     }
 
+    ///look for an equivalent state.
+    ///First get the bucket where state is mapped (and other states whose hashes are the same are
+    ///mapped).
+    ///Then linear search the bucket
     fn register_contains_equivalent(&self, state_index: usize) -> Option<usize> {
-        let cached_states = &self.register.elements;
-
         let state = &self.states[state_index];
 
-        let register_len: usize = self.register.count & REGISTER_COUNT_MASK;
+        //find the bucket where an equivalent state could be stored.
+        //If no bucket is found then immediately return None
+        let bucket = self.register.get_bucket(state)?.get_elements();
 
-        for i in 0..register_len {
-            let cached_state_index = cached_states.get(i).expect(&format!(
-                "last word was {}, state_index is {state_index}.\nnumber of cached states: {}, accessing index {} of register",
-                &std::str::from_utf8(&self.last_key[0..self.last_key_len]).unwrap(), self.register.count, i
-            ));
-
-            let cached_state = &self.states.get(*cached_state_index).expect(&format!(
-                "last word was {}, state_index is {state_index}.\nnumber of cached states: {}, accessed index {} of register and got state {}\nnumber of states in fsa is {}",
-                &std::str::from_utf8(&self.last_key[0..self.last_key_len]).unwrap(),
-                self.register.count,
-                i,
-                *cached_state_index,
-                self.states.len()
-            ));
-
-            if state.eq(cached_state) {
-                return Some(*cached_state_index);
-            }
-        }
-
-        return None;
+        bucket.iter().filter_map(|x| *x).find(|elem| {
+            assert!(*elem < self.states.len());
+            let tmp = &self.states[*elem];
+            return state.eq(tmp);
+        })
     }
 
     #[inline]
@@ -380,21 +380,11 @@ impl Transducer {
                     done_with_prefix = true;
                 }
 
-                //println!("state {current_state_index}");
-                //println!("\toutput on edge: {}", bytes_to_utf8(output));
-
                 if prefix_up_to > 0 {
                     diff = current_state.truncate_last_output(prefix_up_to);
                 } else {
                     diff = current_state.clear_last_output();
                 }
-
-                //if diff.is_some() {
-                //    println!(
-                //        "\tdiff to propagate: {}",
-                //        bytes_to_utf8(&diff.as_ref().unwrap())
-                //    );
-                //}
 
                 //no output on edge
             } else {
@@ -403,9 +393,6 @@ impl Transducer {
 
             //update current state to last_child
             current_state_index = current_state.last_child().unwrap();
-            //if let Some(s) = current_state.get_last_output().get_value_as_deref() {
-            //    buff.extend_from_slice(s);
-            //}
         }
 
         //Now propagate diff to ALL edges EXCEPT last one. Diff will be prepended to their
@@ -416,8 +403,6 @@ impl Transducer {
 
         //add value to last output of last_state
         last_state.set_last_output(&value[trimmed_characters..]);
-
-        //return buff;
     }
 
     /*
@@ -459,8 +444,6 @@ impl Automaton for Transducer {
                 output = tmp;
                 tmp = Vec::new();
             }
-
-            //let (new_state, tmp_value) = state.delta_with_output(*byte);
 
             //there exists a transition from state with byte
             if let Some(transition) = state.delta_with_output(*byte) {

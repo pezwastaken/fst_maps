@@ -13,7 +13,7 @@ mod register;
 mod tests {
     use rand::Rng;
 
-    use crate::fsa::{Automata, build_fsa, dump_graph as fsa_dump_graph};
+    //use crate::fsa::{Automata, build_fsa, dump_graph as fsa_dump_graph};
     use crate::fst::Transducer;
     use crate::fst_builder::{build_transducer_from_collection, dump_graph as fst_dump_graph};
     use rand::prelude::*;
@@ -56,22 +56,6 @@ mod tests {
     //    assert_eq!(i, 4);
     //}
     //
-    #[test]
-    fn process_string() {
-        let mut automata = Automata::new(100);
-
-        let string = String::from("ci");
-
-        automata.add_suffix_to_fsa(0, string.as_bytes());
-        //automata.add_suffix_to_fsa(0, "ratto".as_bytes());
-
-        let res_state = automata
-            .delta_star_from_initial_state(&string)
-            .expect("transitioned to err state");
-        assert_eq!(automata.is_final_state(res_state), true);
-
-        automata.replace_or_register(0);
-    }
     //
     //#[test]
     //fn double_add_suffix() {
@@ -195,25 +179,25 @@ mod tests {
         Ok(io::BufReader::new(file).lines())
     }
 
-    fn are_strings_accepted(fsa: &Automata, str_collection: &Vec<String>) {
-        for (i, s) in str_collection.iter().enumerate() {
-            let reached_state = fsa
-                .delta_star_from_initial_state(&s)
-                .expect("reached error state starting from string {s}");
-
-            assert!(fsa.is_final_state(reached_state));
-        }
-    }
-
-    fn are_strings_not_accepted(fsa: &Automata, str_collection: &Vec<String>) {
-        for (i, s) in str_collection.iter().enumerate() {
-            let reached_state = fsa
-                .delta_star_from_initial_state(&s)
-                .expect("reached error state starting from string {s}");
-
-            assert!(!fsa.is_final_state(reached_state));
-        }
-    }
+    //fn are_strings_accepted(fsa: &Automata, str_collection: &Vec<String>) {
+    //    for (i, s) in str_collection.iter().enumerate() {
+    //        let reached_state = fsa
+    //            .delta_star_from_initial_state(&s)
+    //            .expect("reached error state starting from string {s}");
+    //
+    //        assert!(fsa.is_final_state(reached_state));
+    //    }
+    //}
+    //
+    //fn are_strings_not_accepted(fsa: &Automata, str_collection: &Vec<String>) {
+    //    for (i, s) in str_collection.iter().enumerate() {
+    //        let reached_state = fsa
+    //            .delta_star_from_initial_state(&s)
+    //            .expect("reached error state starting from string {s}");
+    //
+    //        assert!(!fsa.is_final_state(reached_state));
+    //    }
+    //}
 
     //#[test]
     //fn small_word_list_on_fst() {

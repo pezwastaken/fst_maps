@@ -69,7 +69,7 @@ pub struct FstState {
 }
 
 impl FstState {
-    fn new() -> Self {
+    pub fn new() -> Self {
         FstState {
             is_final: false,
             transitions: Vec::new(),
