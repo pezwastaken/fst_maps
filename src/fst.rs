@@ -1,13 +1,16 @@
+use bincode::error::EncodeError;
+
 use crate::{
     automaton::{Automaton, AutomatonState},
     fst_state::{FstState, common_prefix_index},
+    raw_writer::RawWriter,
     register::Register,
 };
 
 type States = Vec<FstState>;
 
 #[derive(Debug)]
-pub struct Transducer {
+pub struct Transducer<'a> {
     pub states: States,
     pub last_key: [u8; 100],
     pub last_key_len: usize,
@@ -15,22 +18,29 @@ pub struct Transducer {
     pub last_value_len: usize,
     //cache: Dictionary,
     register: Register,
+    writer: RawWriter<'a>,
 }
 
-impl Transducer {
-    pub fn new() -> Self {
-        Transducer {
-            states: Vec::with_capacity(128),
-            last_key: [0; 100],
-            last_key_len: 0,
-            last_value: [0; 100],
-            last_value_len: 0,
-            register: Register::new(),
+impl<'a> Transducer<'a> {
+    pub fn new(to_file: &'a str) -> Self {
+        if let Ok(wr) = RawWriter::new(to_file) {
+            Transducer {
+                states: Vec::with_capacity(128),
+                last_key: [0; 100],
+                last_key_len: 0,
+                last_value: [0; 100],
+                last_value_len: 0,
+                register: Register::new(),
+                writer: wr,
+            }
+        } else {
+            panic!("couldn't create an fst mapped to the given file");
         }
     }
 
     pub fn push_zinit_state(&mut self) {
         self.states.push(FstState {
+            id: 0,
             is_final: false,
             transitions: Vec::new(),
             outputs: Vec::new(),
@@ -113,8 +123,6 @@ impl Transducer {
         let suffix = &key[key_prefix_len..];
         self.add_suffix_to_fsa(from_state, suffix);
 
-        //println!("suffix of key is: {}", std::str::from_utf8(suffix).unwrap());
-
         //insert current value associated with current key in the fst
         self.insert_value(&value, from_state, seen_final_state);
 
@@ -144,6 +152,7 @@ impl Transducer {
             let is_state_final = i == string_len - 1;
 
             let new_state: FstState = FstState {
+                id: 0,
                 is_final: is_state_final,
                 transitions: Vec::new(),
                 outputs: Vec::new(),
@@ -171,9 +180,6 @@ impl Transducer {
 
         //merge states added by previous add_suffix_to_fsa that are equivalent to the ones in the register
         if let Some(state_to_merge_with) = self.register_contains_equivalent(child_index) {
-            //
-            //now get a mutable reference to the state who's child is to be merged
-
             {
                 let tmp1 = &self.states[child_index];
                 let tmp2 = &self.states[state_to_merge_with];
@@ -184,6 +190,7 @@ impl Transducer {
                 //dbg!(&tmp2);
             }
 
+            //now get a mutable reference to the state who's child is to be merged
             let current_state = &mut self.states[state_index];
 
             //merge last child
@@ -191,10 +198,10 @@ impl Transducer {
 
             self.states.pop();
         } else {
-            let child = &self.states[child_index];
-            self.register.add_state(child, child_index);
+            //TODO handle error
+            //Should return it
+            let _ = self.add_to_register(child_index);
         }
-        println!();
     }
 
     ///look for an equivalent state.
@@ -213,6 +220,16 @@ impl Transducer {
             let tmp = &self.states[*elem];
             return state.eq(tmp);
         })
+    }
+
+    fn add_to_register(&mut self, state_index: usize) -> Result<(), EncodeError> {
+        let child = &self.states[state_index];
+        self.register.add_state(child, state_index);
+
+        //moving a state to the register means that we have effectively frozen that state.
+        //A frozen state will never be 'touched' again.
+        //Thus, we can write it to file.
+        self.writer.write_state(child)
     }
 
     #[inline]
@@ -419,7 +436,7 @@ impl Transducer {
 }
 
 //automaton implementation
-impl Automaton for Transducer {
+impl<'a> Automaton for Transducer<'a> {
     fn is_final_state(&self, state: usize) -> bool {
         self.states
             .get(state)

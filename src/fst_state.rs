@@ -1,6 +1,7 @@
 use crate::automaton::AutomatonState;
+use bincode::{Decode, Encode};
 
-#[derive(Hash, Debug, PartialEq)]
+#[derive(Hash, Debug, PartialEq, Encode, Decode)]
 pub struct TransitionOutput {
     value: Option<Vec<u8>>,
 }
@@ -56,21 +57,23 @@ impl TransitionOutput {
     }
 }
 
-#[derive(Debug, Hash)]
+#[derive(Debug, Hash, Encode, Decode)]
 pub struct FstState {
     //id: usize,
-    pub is_final: bool,
+    pub id: usize,
 
     //these two fields are "linked" together to model a transition of the transducer.
     //outputs[i] is the output associated to transition `i` of current state
     pub transitions: Vec<(u8, usize)>,
-    //pub outputs: Vec<Option<Vec<u8>>>,
     pub outputs: Vec<TransitionOutput>,
+
+    pub is_final: bool,
 }
 
 impl FstState {
     pub fn new() -> Self {
         FstState {
+            id: 0,
             is_final: false,
             transitions: Vec::new(),
             outputs: Vec::new(),

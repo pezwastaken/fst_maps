@@ -5,3 +5,5 @@ edition = "2024"
 
 [dependencies]
 rand = "0.8"
+memmap2 = "0.9.5"
+bincode = "2.0.1"

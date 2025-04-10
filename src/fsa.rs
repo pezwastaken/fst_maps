@@ -188,10 +188,7 @@
 //            states: tmp.into(),
 //            last_str: [0; 100],
 //            last_str_len: 0,
-//            register: Register {
-//                elements: [0; REGISTER_CAPACITY],
-//                count: 0,
-//            },
+//            register: Register::new(),
 //        }
 //    }
 //
@@ -312,7 +309,8 @@
 //
 //            self.states.pop();
 //        } else {
-//            self.register.add_state(child_index);
+//            let child = &self.states[child_index];
+//            self.register.add_state(child, child_index);
 //        }
 //    }
 //
