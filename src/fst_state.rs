@@ -1,7 +1,7 @@
 use crate::automaton::AutomatonState;
 use bincode::{Decode, Encode};
 
-#[derive(Hash, Debug, PartialEq, Encode, Decode)]
+#[derive(Debug, PartialEq, Clone, Encode, Decode)]
 pub struct TransitionOutput {
     value: Option<Vec<u8>>,
 }
@@ -57,7 +57,7 @@ impl TransitionOutput {
     }
 }
 
-#[derive(Debug, Hash, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct FstState {
     //id: usize,
     pub id: usize,

@@ -12,6 +12,12 @@ type States = Vec<FstState>;
 #[derive(Debug)]
 pub struct Transducer<'a> {
     pub states: States,
+
+    //TODO
+    //vector of temporary states (not yet frozen)
+    //This means they are still not in the register. The initial state will always be part of the
+    //temp_states vec
+    //pub temp_states: States,
     pub last_key: [u8; 100],
     pub last_key_len: usize,
     pub last_value: [u8; 100],
@@ -152,7 +158,7 @@ impl<'a> Transducer<'a> {
             let is_state_final = i == string_len - 1;
 
             let new_state: FstState = FstState {
-                id: 0,
+                id: self.states.len(),
                 is_final: is_state_final,
                 transitions: Vec::new(),
                 outputs: Vec::new(),
@@ -183,14 +189,16 @@ impl<'a> Transducer<'a> {
             {
                 let tmp1 = &self.states[child_index];
                 let tmp2 = &self.states[state_to_merge_with];
-                assert_eq!(tmp1, tmp2);
 
-                //dbg!(&tmp1);
-                //println!("equivalent to:");
-                //dbg!(&tmp2);
+                dbg!(&tmp1);
+                println!("equivalent to:");
+                dbg!(&tmp2);
+
+                println!();
+                assert_eq!(tmp1, tmp2);
             }
 
-            //now get a mutable reference to the state who's child is to be merged
+            //now get a mutable reference to the state whose child is to be merged
             let current_state = &mut self.states[state_index];
 
             //merge last child
@@ -204,27 +212,26 @@ impl<'a> Transducer<'a> {
         }
     }
 
-    ///look for an equivalent state.
-    ///First get the bucket where state is mapped (and other states whose hashes are the same are
-    ///mapped).
-    ///Then linear search the bucket
+    ///look for an equivalent state in the register.
     fn register_contains_equivalent(&self, state_index: usize) -> Option<usize> {
         let state = &self.states[state_index];
 
+        self.register.get_equivalent(state)
+
         //find the bucket where an equivalent state could be stored.
         //If no bucket is found then immediately return None
-        let bucket = self.register.get_bucket(state)?.get_elements();
-
-        bucket.iter().filter_map(|x| *x).find(|elem| {
-            assert!(*elem < self.states.len());
-            let tmp = &self.states[*elem];
-            return state.eq(tmp);
-        })
+        //let bucket = self.register.get_bucket(state)?.get_elements();
+        //
+        //bucket.iter().filter_map(|x| *x).find(|elem| {
+        //    assert!(*elem < self.states.len());
+        //    let tmp = &self.states[*elem];
+        //    return state.eq(tmp);
+        //})
     }
 
     fn add_to_register(&mut self, state_index: usize) -> Result<(), EncodeError> {
         let child = &self.states[state_index];
-        self.register.add_state(child, state_index);
+        self.register.add_state(child.clone());
 
         //moving a state to the register means that we have effectively frozen that state.
         //A frozen state will never be 'touched' again.

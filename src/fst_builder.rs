@@ -155,11 +155,6 @@ mod fst_builder_tests {
     use std::os::unix::thread;
     use std::rc::Rc;
 
-    use rand::Rng;
-    use rand::distributions::Alphanumeric;
-    use rand::distributions::Uniform;
-    use rand::thread_rng;
-
     use crate::automaton::Automaton;
     use crate::fst::Transducer;
     use crate::fst_state::FstState;
@@ -178,82 +173,82 @@ mod fst_builder_tests {
         ensure_all_pairs(&fst, "maps/5.txt");
     }
 
-    //#[test]
-    //fn file_100() {
-    //    let Ok(fst) = build_transducer_from_collection("maps/100.txt");
-    //
-    //    //dump_graph(&fst, "fst.dot");
-    //
-    //    ensure_all_pairs(&fst, "maps/100.txt");
-    //}
-    //
-    //#[test]
-    //fn file_300() {
-    //    let Ok(fst) = build_transducer_from_collection("maps/300.txt");
-    //
-    //    //dump_graph(&fst, "fst.dot");
-    //
-    //    ensure_all_pairs(&fst, "maps/300.txt");
-    //}
-    //
-    //#[test]
-    //fn file_1000() {
-    //    let Ok(fst) = build_transducer_from_collection("maps/1000.txt");
-    //
-    //    //dump_graph(&fst, "fst.dot");
-    //
-    //    ensure_all_pairs(&fst, "maps/1000.txt");
-    //}
-    //
-    //#[test]
-    //fn file_1000_2() {
-    //    let Ok(fst) = build_transducer_from_collection("maps/1000_2.txt");
-    //
-    //    //dump_graph(&fst, "fst.dot");
-    //
-    //    ensure_all_pairs(&fst, "maps/1000_2.txt");
-    //}
-    //
-    //#[test]
-    //fn file_3000_random_values() {
-    //    let Ok(fst) = build_transducer_from_collection("maps/3000_rand.txt");
-    //
-    //    //dump_graph(&fst, "fst.dot");
-    //
-    //    ensure_all_pairs(&fst, "maps/3000_rand.txt");
-    //}
-    //
-    //#[test]
-    //fn file_5000_altered() {
-    //    let Ok(fst) = build_transducer_from_collection("maps/5000_a.txt");
-    //
-    //    //dump_graph(&fst, "fst.dot");
-    //
-    //    ensure_all_pairs(&fst, "maps/5000_a.txt");
-    //
-    //    let res = fst.get("gigabitd".as_bytes());
-    //    assert_eq!(res, None);
-    //    let res = fst.get("gigabi".as_bytes());
-    //    assert_eq!(res, None);
-    //    let res = fst.get("gigabiz".as_bytes());
-    //    assert_eq!(res, None);
-    //}
-    //
-    //#[test]
-    //fn file_tons() {
-    //    let Ok(fst) = build_transducer_from_collection("maps/tons_of_pairs.txt");
-    //
-    //    //dump_graph(&fst, "fst.dot");
-    //
-    //    ensure_all_pairs(&fst, "maps/tons_of_pairs.txt");
-    //
-    //    let res = fst.get("heyy".as_bytes());
-    //    assert_eq!(res, None);
-    //    let res = fst.get("phil".as_bytes());
-    //    assert_eq!(res, None);
-    //    let res = fst.get("zappe".as_bytes());
-    //    assert_eq!(res, None);
-    //}
+    #[test]
+    fn file_100() {
+        let Ok(fst) = build_transducer_from_collection("maps/100.txt");
+
+        //dump_graph(&fst, "fst.dot");
+
+        ensure_all_pairs(&fst, "maps/100.txt");
+    }
+
+    #[test]
+    fn file_300() {
+        let Ok(fst) = build_transducer_from_collection("maps/300.txt");
+
+        //dump_graph(&fst, "fst.dot");
+
+        ensure_all_pairs(&fst, "maps/300.txt");
+    }
+
+    #[test]
+    fn file_1000() {
+        let Ok(fst) = build_transducer_from_collection("maps/1000.txt");
+
+        //dump_graph(&fst, "fst.dot");
+
+        ensure_all_pairs(&fst, "maps/1000.txt");
+    }
+
+    #[test]
+    fn file_1000_2() {
+        let Ok(fst) = build_transducer_from_collection("maps/1000_2.txt");
+
+        //dump_graph(&fst, "fst.dot");
+
+        ensure_all_pairs(&fst, "maps/1000_2.txt");
+    }
+
+    #[test]
+    fn file_3000_random_values() {
+        let Ok(fst) = build_transducer_from_collection("maps/3000_rand.txt");
+
+        //dump_graph(&fst, "fst.dot");
+
+        ensure_all_pairs(&fst, "maps/3000_rand.txt");
+    }
+
+    #[test]
+    fn file_5000_altered() {
+        let Ok(fst) = build_transducer_from_collection("maps/5000_a.txt");
+
+        //dump_graph(&fst, "fst.dot");
+
+        ensure_all_pairs(&fst, "maps/5000_a.txt");
+
+        let res = fst.get("gigabitd".as_bytes());
+        assert_eq!(res, None);
+        let res = fst.get("gigabi".as_bytes());
+        assert_eq!(res, None);
+        let res = fst.get("gigabiz".as_bytes());
+        assert_eq!(res, None);
+    }
+
+    #[test]
+    fn file_tons() {
+        let Ok(fst) = build_transducer_from_collection("maps/tons_of_pairs.txt");
+
+        //dump_graph(&fst, "fst.dot");
+
+        ensure_all_pairs(&fst, "maps/tons_of_pairs.txt");
+
+        let res = fst.get("heyy".as_bytes());
+        assert_eq!(res, None);
+        let res = fst.get("phil".as_bytes());
+        assert_eq!(res, None);
+        let res = fst.get("zappe".as_bytes());
+        assert_eq!(res, None);
+    }
 
     fn ensure_all_pairs(fst: &Transducer<'_>, filename: &str) {
         if let Ok(lines) = read_lines(filename) {
