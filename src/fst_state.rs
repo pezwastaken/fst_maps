@@ -80,6 +80,11 @@ impl FstState {
         }
     }
 
+    pub fn set_last_transition_child(&mut self, to_state: usize) {
+        assert!(!self.transitions.is_empty());
+        self.transitions.last_mut().unwrap().1 = to_state;
+    }
+
     #[inline]
     pub fn merge_with(&mut self, other_state: usize) -> bool {
         if let Some(transition) = self.transitions.last_mut() {
@@ -323,7 +328,16 @@ impl PartialEq for FstState {
 
         let outputs_equal = self.are_outputs_equal(other_state);
 
-        return transitions_equal && outputs_equal;
+        let res = transitions_equal && outputs_equal;
+
+        //if res {
+        //    println!("equivalent states");
+        //    dbg!(self);
+        //    println!("to");
+        //    dbg!(other_state);
+        //}
+
+        return res;
     }
 }
 

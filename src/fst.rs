@@ -11,13 +11,15 @@ type States = Vec<FstState>;
 
 #[derive(Debug)]
 pub struct Transducer<'a> {
+    //pub states: States,
+    //TODO REMOVE this
+    //It's just to output the dot graph
     pub states: States,
-
     //TODO
     //vector of temporary states (not yet frozen)
     //This means they are still not in the register. The initial state will always be part of the
     //temp_states vec
-    //pub temp_states: States,
+    pub temp_states: States,
     pub last_key: [u8; 100],
     pub last_key_len: usize,
     pub last_value: [u8; 100],
@@ -32,6 +34,7 @@ impl<'a> Transducer<'a> {
         if let Ok(wr) = RawWriter::new(to_file) {
             Transducer {
                 states: Vec::with_capacity(128),
+                temp_states: Vec::with_capacity(128),
                 last_key: [0; 100],
                 last_key_len: 0,
                 last_value: [0; 100],
@@ -45,26 +48,21 @@ impl<'a> Transducer<'a> {
     }
 
     pub fn push_zinit_state(&mut self) {
-        self.states.push(FstState {
-            id: 0,
+        self.temp_states.push(FstState {
+            //TODO this is just a placeholder for the initial state
+            id: 99999,
             is_final: false,
             transitions: Vec::new(),
             outputs: Vec::new(),
         });
     }
 
-    pub fn state_has_children(&self, state_index: usize) -> bool {
-        return self.states[state_index].has_children();
-    }
-
+    ///This should always just follow the last path (states in temp_states vec)
+    ///
     ///process input tape starting from `state`.
     ///Returns a tuple containing the reached state (if no errors) and the last seen final state if any, otherwise None.
-    pub fn delta_star_final_state(
-        &self,
-        state: usize,
-        input_tape: &[u8],
-    ) -> (Option<usize>, Option<usize>) {
-        assert!(self.states.len() > 0);
+    pub fn delta_star_final_state(&self, input_tape: &[u8]) -> (Option<usize>, Option<usize>) {
+        assert!(!self.temp_states.is_empty());
 
         //a vector containing the output associated with the current final state
         let mut current_output: Vec<u8> = Vec::new();
@@ -73,17 +71,17 @@ impl<'a> Transducer<'a> {
         //pushed onto tmp_outputs and reset
         let mut tmp: Vec<u8> = Vec::with_capacity(input_tape.len());
 
-        let mut current_state = state;
+        let mut current_state = 0;
 
         //final state found on path
         let mut last_seen_final_state = None;
 
-        for byte in input_tape.iter() {
+        for (i, byte) in input_tape.iter().enumerate() {
             //compute delta and get both the reached state and the possible output on the just made transition
-            if let Some((new_state, output)) = self.states[current_state].delta_with_output(*byte) {
-                //move to new state
-                assert!(current_state != new_state);
 
+            current_state = i;
+
+            if let Some((_new_state, output)) = self.temp_states[i].delta_with_output(*byte) {
                 //Keep track of current output
                 if output.has_value() {
                     let len_before_extend = tmp.len();
@@ -92,16 +90,12 @@ impl<'a> Transducer<'a> {
                     assert!(tmp.len() > len_before_extend);
                 }
 
-                //update state
-                current_state = new_state;
-
                 //new state is final.
                 //Update the last seen final state to some(current_state)
-                if self.states[current_state].is_final {
-                    last_seen_final_state = Some(current_state);
+                if self.temp_states[i].is_final {
+                    last_seen_final_state = Some(i);
 
                     //push tmp to tmp_outputs and reset tmp
-                    //tmp_outputs.push(tmp);
                     current_output = tmp;
                     tmp = Vec::new();
                 }
@@ -126,6 +120,9 @@ impl<'a> Transducer<'a> {
         from_state: usize,
         seen_final_state: Option<usize>,
     ) {
+        println!("called insert pair with from_state: {from_state}");
+        dbg!(seen_final_state);
+
         let suffix = &key[key_prefix_len..];
         self.add_suffix_to_fsa(from_state, suffix);
 
@@ -144,99 +141,116 @@ impl<'a> Transducer<'a> {
 
         let string_len = y.len();
 
-        let initial_number_of_states = self.states.len();
+        let initial_number_of_states = self.temp_states.len();
 
         let mut current_state = from_state;
 
         for (i, byte) in y.iter().enumerate() {
             //get the current state and add a new transition to it
-            let new_state_id = self.states.len();
+            let new_state_id = self.temp_states.len();
 
-            self.states[current_state].add_transition(*byte, new_state_id);
+            //0 means that the id to which this transition is pointing will be set later
+            self.temp_states[current_state].add_transition(*byte, 1);
+            //self.temp_states[current_state].add_transition(*byte, new_state_id);
 
             //if last loop iteration the state is to be marked as final
             let is_state_final = i == string_len - 1;
 
             let new_state: FstState = FstState {
-                id: self.states.len(),
+                //id: self.states.len(),
+                id: 1,
                 is_final: is_state_final,
                 transitions: Vec::new(),
                 outputs: Vec::new(),
             };
 
             assert!(new_state.transitions.is_empty());
-            self.states.push(new_state);
+            self.temp_states.push(new_state);
+
+            assert!(self.temp_states.len() > 1);
 
             current_state = new_state_id;
         }
 
-        assert!(initial_number_of_states <= self.states.len());
+        assert!(initial_number_of_states <= self.temp_states.len());
     }
 
     //assume state has children
-    pub fn replace_or_register(&mut self, state_index: usize) {
-        let state = &self.states[state_index];
-
+    pub fn replace_or_register(&mut self, i: usize) {
         //get the state `id` of the last outgoing transition from current state
-        let child_index = state.last_child().unwrap();
 
-        if self.state_has_children(child_index) {
-            self.replace_or_register(child_index);
+        if self.temp_states[i + 1].has_children() {
+            self.replace_or_register(i + 1);
         }
 
         //merge states added by previous add_suffix_to_fsa that are equivalent to the ones in the register
-        if let Some(state_to_merge_with) = self.register_contains_equivalent(child_index) {
-            {
-                let tmp1 = &self.states[child_index];
-                let tmp2 = &self.states[state_to_merge_with];
-
-                dbg!(&tmp1);
-                println!("equivalent to:");
-                dbg!(&tmp2);
-
-                println!();
-                assert_eq!(tmp1, tmp2);
-            }
-
+        if let Some(state_to_merge_with) = self.register_contains_equivalent(i + 1) {
             //now get a mutable reference to the state whose child is to be merged
-            let current_state = &mut self.states[state_index];
+            let current_state = &mut self.temp_states[i];
 
             //merge last child
             current_state.merge_with(state_to_merge_with);
 
-            self.states.pop();
+            self.temp_states.pop();
         } else {
             //TODO handle error
             //Should return it
-            let _ = self.add_to_register(child_index);
+
+            match self.add_to_register(i + 1) {
+                Ok(written_bytes) => {
+                    let current_state = &mut self.temp_states[i];
+                    current_state.set_last_transition_child(written_bytes);
+                }
+
+                Err(e) => panic!("error during add to register: {e:?}"),
+            }
         }
     }
 
     ///look for an equivalent state in the register.
     fn register_contains_equivalent(&self, state_index: usize) -> Option<usize> {
-        let state = &self.states[state_index];
+        let state = &self.temp_states[state_index];
 
         self.register.get_equivalent(state)
-
-        //find the bucket where an equivalent state could be stored.
-        //If no bucket is found then immediately return None
-        //let bucket = self.register.get_bucket(state)?.get_elements();
-        //
-        //bucket.iter().filter_map(|x| *x).find(|elem| {
-        //    assert!(*elem < self.states.len());
-        //    let tmp = &self.states[*elem];
-        //    return state.eq(tmp);
-        //})
     }
 
-    fn add_to_register(&mut self, state_index: usize) -> Result<(), EncodeError> {
-        let child = &self.states[state_index];
-        self.register.add_state(child.clone());
+    fn add_to_register(&mut self, i: usize) -> Result<usize, EncodeError> {
+        //assert_eq!(i, self.temp_states.len() - 1);
+        let state = &mut self.temp_states[i];
+        //this will be the state new id
+        let written_bytes = self.writer.get_written_bytes();
+
+        //println!("added state {written_bytes} to register");
+        state.id = written_bytes;
+
+        //this is just temporary
+        self.states.push(state.clone());
+
+        //TODO move (not copy) the state to the register
+        self.register.add_state(state.clone());
 
         //moving a state to the register means that we have effectively frozen that state.
         //A frozen state will never be 'touched' again.
         //Thus, we can write it to file.
-        self.writer.write_state(child)
+        //self.writer.write_state(state)?;
+        self.persist_state(i)?;
+
+        self.temp_states.pop();
+
+        Ok(written_bytes)
+    }
+
+    pub fn persist_state(&mut self, i: usize) -> Result<usize, EncodeError> {
+        let state = &self.temp_states[i];
+
+        self.writer.write_state(state)
+    }
+
+    pub fn persist_initial_state(&mut self) {
+        self.persist_state(0)
+            .expect("couldn't persist initial state to file");
+
+        todo!();
     }
 
     #[inline]
@@ -244,39 +258,26 @@ impl<'a> Transducer<'a> {
         self.last_key[0..self.last_key_len].fill(0);
     }
 
-    //return the index of the first state (starting from 0) which has some value on last output
-    //stop and return none if last_state is reached
+    //TODO this probably contains as many errors as lines of code
     fn first_output_on_path_to(&self, last_state: usize) -> Option<usize> {
-        let mut current_state = 0;
-
         //keep going until last_state is reached
-        while current_state != last_state {
-            //get reference to current state
-            let tmp = self
-                .states
-                .get(current_state)
-                .expect("states {current_state} out of bounds.");
-
+        for (i, state) in self.temp_states[..last_state].iter().enumerate() {
             //if state has children then it must have outgoing transitions and possibly output
             //values associated with them
-            if tmp.has_children() {
-                let last_output = tmp.get_last_output();
+            if state.has_children() {
+                let last_output = state.get_last_output();
 
                 //if no output on last transition => continue searching on `last path`
                 match last_output.get_value_as_deref() {
-                    Some(_) => return Some(current_state),
+                    Some(_) => return Some(i),
                     None => {
-                        current_state = tmp.last_child().expect(
-                            "state {current_state} expected to have child but didn't found one.",
-                        );
                         continue;
                     }
                 }
             //state doesn't have children
             } else {
-                panic!(
-                    "state {current_state} doesn't have children but is ancestor of {last_state}"
-                );
+                assert_eq!(i, self.temp_states.len() - 1);
+                //panic!("state {state:?} doesn't have children");
             }
         }
 
@@ -320,15 +321,9 @@ impl<'a> Transducer<'a> {
                 //
 
                 self.diff_propagation(first_state_with_output, last_state_index, value);
-
-                //let prefix_on_path_len = common_prefix_index(&output_on_path, value);
-
-                //add value[prefix_len..] to last output of last state
-                //let last_state = &mut self.states[last_state_index];
-                //last_state.set_last_output(&value[prefix_on_path_len..]);
             } else {
                 //add value to last output of last state
-                let last_state = &mut self.states[last_state_index];
+                let last_state = &mut self.temp_states[last_state_index];
                 last_state.set_last_output(&value);
             }
         }
@@ -345,43 +340,41 @@ impl<'a> Transducer<'a> {
         value: &[u8],
         //) -> Vec<u8> {
     ) {
+        println!("first state index: {first_state_index}");
+        println!("last state index: {last_state_index}");
         assert!(first_state_index <= last_state_index);
 
-        //get a mut reference to next state (last child)
-        let mut current_state_index = first_state_index;
-
         let mut diff = None;
-
-        //this buff will be used to keep track of what output is encountered by walking the path
-        //from first_state_index up to last_state.
-        //let mut buff: Vec<u8> = Vec::with_capacity(value.len());
 
         let mut trimmed_characters = 0;
 
         let mut done_with_prefix = false;
 
-        //println!("\ndiff propagation with value: {}", bytes_to_utf8(value));
+        for (i, state) in self
+            .temp_states
+            .iter_mut()
+            .enumerate()
+            .skip(first_state_index)
+        {
+            if i == last_state_index {
+                break;
+            }
 
-        //while loop until current state != last_state
-        while current_state_index != last_state_index {
-            //
-            //propagate diff to all outgoing edges. Diff will be prepended to their outputs
-            let current_state = &mut self.states[current_state_index];
-            assert!(current_state.has_children());
+            assert!(state.has_children());
 
             //propagate diff from previous iteration if and only if the current state is not final.
             //A final state means that output on previous edges constitutes its total output
             //Propagating would mean modifying the value associated with that final state (key)
-            if !current_state.is_final {
-                current_state.propagate_new_prefix(diff.as_deref());
+            if !state.is_final {
+                state.propagate_new_prefix(diff.as_deref());
             } else {
-                if current_state_index != first_state_index {
-                    unreachable!("diff_propagation should never be called on a final state");
+                if i != first_state_index {
+                    unreachable!("diff_propagation should never be called on a final state {i}");
                 }
             }
 
             //Take last output.
-            let current_last_output = current_state.get_last_output();
+            let current_last_output = state.get_last_output();
 
             //find common prefix between output and value
             if let Some(output) = current_last_output.get_value_as_deref() {
@@ -405,24 +398,20 @@ impl<'a> Transducer<'a> {
                 }
 
                 if prefix_up_to > 0 {
-                    diff = current_state.truncate_last_output(prefix_up_to);
+                    diff = state.truncate_last_output(prefix_up_to);
                 } else {
-                    diff = current_state.clear_last_output();
+                    diff = state.clear_last_output();
                 }
 
                 //no output on edge
             } else {
                 diff = None;
             }
-
-            //update current state to last_child
-            current_state_index = current_state.last_child().unwrap();
         }
 
         //Now propagate diff to ALL edges EXCEPT last one. Diff will be prepended to their
         //outputs
-
-        let last_state = &mut self.states[last_state_index];
+        let last_state = &mut self.temp_states[last_state_index];
         last_state.propagate_prefix_exc_last(&diff);
 
         //add value to last output of last_state
@@ -440,65 +429,79 @@ impl<'a> Transducer<'a> {
         self.last_key_len = word_len;
         self.last_key[..word_len].copy_from_slice(&new_key[..]);
     }
+
+    ///Returns the last index of a final state inside the temp_states vec (if any)
+    ///Returns None in case no state is marked as final
+    pub fn temp_contains_final(&self, up_to: usize) -> Option<usize> {
+        self.temp_states[..=up_to]
+            .iter()
+            .rev()
+            .position(|state| state.is_final)
+            .map(|i| up_to - i)
+    }
 }
 
 //automaton implementation
 impl<'a> Automaton for Transducer<'a> {
     fn is_final_state(&self, state: usize) -> bool {
-        self.states
+        self.temp_states
             .get(state)
             .expect("no state with index: {state}")
             .is_final
     }
 
+    fn get(&self, _input_tape: &[u8]) -> Option<Vec<u8>> {
+        todo!();
+    }
+
     //process input tape (key) and return output collected along the path to a final state.
     //Returns None if no final state is reached or an error state is reached
-    fn get(&self, input_tape: &[u8]) -> Option<Vec<u8>> {
-        assert!(self.states.len() > 0);
-
-        let mut current_state = 0;
-
-        let mut tmp: Vec<u8> = Vec::new();
-        let mut output: Vec<u8> = Vec::new();
-
-        for byte in input_tape.iter() {
-            let state = &self.states[current_state];
-
-            if state.is_final {
-                output = tmp;
-                tmp = Vec::new();
-            }
-
-            //there exists a transition from state with byte
-            if let Some(transition) = state.delta_with_output(*byte) {
-                let (new_state, tmp_value) = transition;
-                //move to new state
-                assert!(current_state != new_state);
-                current_state = new_state;
-
-                //process output of transition.
-                //Not all transitions have output associated with them
-                if let Some(v) = tmp_value.get_value_as_deref() {
-                    //if a value exists => extend final (possible) output with it
-                    tmp.extend(v);
-                }
-            }
-            //no outgoing transition from state with byte
-            else {
-                return None;
-            }
-        }
-
-        //if a final state was reached => return the value
-        if self.is_final_state(current_state) {
-            output = tmp;
-            return Some(output);
-        }
-        //else return None => input_tape wasn't a valid key
-        else {
-            return None;
-        }
-    }
+    //fn get(&self, input_tape: &[u8]) -> Option<Vec<u8>> {
+    //    assert!(self.temp_states.len() > 0);
+    //
+    //    let mut current_state = 0;
+    //
+    //    let mut tmp: Vec<u8> = Vec::new();
+    //    let mut output: Vec<u8> = Vec::new();
+    //
+    //    for byte in input_tape.iter() {
+    //        let state = &self.temp_states[current_state];
+    //
+    //        if state.is_final {
+    //            output = tmp;
+    //            tmp = Vec::new();
+    //        }
+    //
+    //        //there exists a transition from state with byte
+    //        if let Some(transition) = state.delta_with_output(*byte) {
+    //            let (new_state, tmp_value) = transition;
+    //            //move to new state
+    //            assert!(current_state != new_state);
+    //            current_state = new_state;
+    //
+    //            //process output of transition.
+    //            //Not all transitions have output associated with them
+    //            if let Some(v) = tmp_value.get_value_as_deref() {
+    //                //if a value exists => extend final (possible) output with it
+    //                tmp.extend(v);
+    //            }
+    //        }
+    //        //no outgoing transition from state with byte
+    //        else {
+    //            return None;
+    //        }
+    //    }
+    //
+    //    //if a final state was reached => return the value
+    //    if self.is_final_state(current_state) {
+    //        output = tmp;
+    //        return Some(output);
+    //    }
+    //    //else return None => input_tape wasn't a valid key
+    //    else {
+    //        return None;
+    //    }
+    //}
 }
 
 pub enum FstError {}

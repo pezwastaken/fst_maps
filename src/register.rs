@@ -57,6 +57,7 @@ impl Bucket {
 #[derive(Debug)]
 pub struct Register {
     buckets: [Bucket; REGISTER_CAPACITY as usize],
+    written_bytes: usize,
 }
 
 impl Register {
@@ -68,14 +69,17 @@ impl Register {
 
         let tmp = array_init::array_init(|_| Bucket::new());
 
-        Self { buckets: tmp }
+        Self {
+            buckets: tmp,
+            written_bytes: 0,
+        }
     }
 
     //TODO get rid of mod
     #[inline]
     pub fn add_state(&mut self, state: FstState) {
-        println!("adding state to register");
-        dbg!(&state);
+        //println!("adding state to register");
+        //dbg!(&state);
         let state_hash = (self.hash(&state) % REGISTER_CAPACITY) as usize;
         let bucket = &mut self.buckets[state_hash];
         bucket.insert(state);
