@@ -44,8 +44,6 @@ pub fn build_transducer_from_collection(
             //key common prefix len
             let prefix_len = common_prefix_index(&transducer.last_key, &key);
 
-            //println!("prefix len with last key: {prefix_len}");
-
             //key common prefix
             //let prefix = &key[0..prefix_len];
 
@@ -112,9 +110,9 @@ fn parse_line(line: &[u8]) -> Option<(&[u8], &[u8])> {
 }
 
 pub fn dump_graph(fst: &Transducer<'_>, file_path: &str) -> io::Result<()> {
-    //println!("states");
+    println!("states in dump graph");
     //dbg!(&fst.temp_states[0]);
-    //dbg!(&fst.states);
+    dbg!(&fst.states);
 
     let mut file = File::create(file_path)?;
 

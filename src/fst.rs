@@ -215,12 +215,16 @@ impl<'a> Transducer<'a> {
 
     fn add_to_register(&mut self, i: usize) -> Result<usize, EncodeError> {
         //assert_eq!(i, self.temp_states.len() - 1);
-        let state = &mut self.temp_states[i];
+        //REMOVE
         //this will be the state new id
-        let written_bytes = self.writer.get_written_bytes();
-
+        //let written_bytes = self.writer.get_written_bytes();
         //println!("added state {written_bytes} to register");
-        state.id = written_bytes;
+        //state.id = written_bytes;
+
+        let address = self.persist_state(i)?;
+
+        let state = &mut self.temp_states[i];
+        state.id = address;
 
         //this is just temporary
         self.states.push(state.clone());
@@ -232,31 +236,40 @@ impl<'a> Transducer<'a> {
         //A frozen state will never be 'touched' again.
         //Thus, we can write it to file.
         //self.writer.write_state(state)?;
-        self.persist_state(i)?;
 
         self.temp_states.pop();
 
-        Ok(written_bytes)
+        Ok(address)
     }
 
+    ///Writes the given FstState and then its length (in bytes).
+    ///Returns the address to the start of the state len.
     pub fn persist_state(&mut self, i: usize) -> Result<usize, EncodeError> {
         let state = &self.temp_states[i];
 
-        self.writer.write_state(state)
+        let wrote = self.writer.write_state(state)?;
+
+        //this is the address that is to be returned
+        let total_written_bytes = self.writer.get_written_bytes();
+
+        match self.writer.write_fixed_int(wrote) {
+            Ok(_) => Ok(total_written_bytes),
+            Err(e) => panic!("error while writing fixed int: {e:?}"),
+        }
     }
 
     pub fn persist_initial_state(&mut self) {
         //write initial state
-        let wrote = self
-            .persist_state(0)
+        self.persist_state(0)
             .expect("couldn't persist initial state to file");
 
-        //write its len (in terms of bytes) to file.
-        let wrote = self
-            .writer
-            .write_fixed_int(wrote)
-            .expect("couldn't write fixed int {wrote} to file");
-        println!("Just wrote initial state len to file using fixed int: {wrote} ");
+        dbg!(&self.temp_states[0]);
+        //
+        ////write its len (in terms of bytes) to file.
+        //match self.writer.write_fixed_int(wrote) {
+        //    Ok(_) => {}
+        //    Err(e) => panic!("error while writing fixed int: {e:?}"),
+        //}
     }
 
     #[inline]

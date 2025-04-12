@@ -44,9 +44,12 @@ impl<'a> RawWriter<'a> {
     }
 
     ///Writes an int with fixed length encoding
-    pub fn write_fixed_int(&mut self, x: usize) -> Result<usize, EncodeError> {
+    pub fn write_fixed_int(&mut self, x: usize) -> Result<(), EncodeError> {
         let config = bincode::config::standard().with_fixed_int_encoding();
 
-        bincode::encode_into_std_write(x, &mut self.inner_writer, config)
+        let wrote = bincode::encode_into_std_write(x, &mut self.inner_writer, config)?;
+
+        self.written_bytes += wrote;
+        Ok(())
     }
 }
