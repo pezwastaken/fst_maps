@@ -10,6 +10,9 @@ use std::io::BufRead;
 use std::io::Write;
 
 //TODO empty files are not handled !?
+//TODO parameterize the output file
+//
+///Calling this function results in a fst being built and persisted to file
 pub fn build_transducer_from_collection(
     //collection: Vec<(Vec<u8>, Vec<u8>)>,
     //input_stream: &mut T,
@@ -18,7 +21,7 @@ pub fn build_transducer_from_collection(
 //where
     //T: Iterator<Item = Vec<u8>>,
 {
-    let mut transducer = Transducer::new("test.fst");
+    let mut transducer = Transducer::new("indices/temp.fst");
 
     transducer.push_zinit_state();
 
@@ -26,7 +29,6 @@ pub fn build_transducer_from_collection(
 
     //for item in input_stream {
     if let Ok(lines) = read_lines(filename) {
-        //for line in lines.filter(|x| x.is_ok()) {
         for line in lines.map_while(Result::ok) {
             //convert lines to bytes
             let bytes: &[u8] = &line.as_bytes();
@@ -34,7 +36,7 @@ pub fn build_transducer_from_collection(
             let (key, value): (&[u8], &[u8]) =
                 parse_line(bytes).expect("No lines should be empty!");
 
-            println!("processing key: {}", std::str::from_utf8(key).unwrap());
+            //println!("processing key: {}", std::str::from_utf8(key).unwrap());
 
             //TODO should also make sure the key has not been processed in the past
             assert_ne!(key, &transducer.last_key[..transducer.last_key_len]);
@@ -42,10 +44,10 @@ pub fn build_transducer_from_collection(
             //key common prefix len
             let prefix_len = common_prefix_index(&transducer.last_key, &key);
 
-            println!("prefix len with last key: {prefix_len}");
+            //println!("prefix len with last key: {prefix_len}");
 
             //key common prefix
-            let prefix = &key[0..prefix_len];
+            //let prefix = &key[0..prefix_len];
 
             let last_state_index = prefix_len;
 
@@ -66,8 +68,8 @@ pub fn build_transducer_from_collection(
                 seen_final_state_index,
             );
 
-            println!("done with key: {}", std::str::from_utf8(key).unwrap());
-            println!();
+            //println!("done with key: {}", std::str::from_utf8(key).unwrap());
+            //println!();
         }
     }
 
@@ -75,6 +77,7 @@ pub fn build_transducer_from_collection(
     transducer.states.push(transducer.temp_states[0].clone());
 
     transducer.persist_initial_state();
+    println!("fst output to file!");
 
     return Ok(transducer);
 }

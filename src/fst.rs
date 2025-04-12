@@ -24,7 +24,6 @@ pub struct Transducer<'a> {
     pub last_key_len: usize,
     pub last_value: [u8; 100],
     pub last_value_len: usize,
-    //cache: Dictionary,
     register: Register,
     writer: RawWriter<'a>,
 }
@@ -247,10 +246,17 @@ impl<'a> Transducer<'a> {
     }
 
     pub fn persist_initial_state(&mut self) {
-        self.persist_state(0)
+        //write initial state
+        let wrote = self
+            .persist_state(0)
             .expect("couldn't persist initial state to file");
 
-        todo!();
+        //write its len (in terms of bytes) to file.
+        let wrote = self
+            .writer
+            .write_fixed_int(wrote)
+            .expect("couldn't write fixed int {wrote} to file");
+        println!("Just wrote initial state len to file using fixed int: {wrote} ");
     }
 
     #[inline]
