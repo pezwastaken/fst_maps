@@ -1,4 +1,4 @@
-use crate::fst_state::FstState;
+use crate::{automaton::AutomatonState, fst_state::FstState};
 
 //must always be a power of 2
 pub const REGISTER_CAPACITY: u64 = 256;
@@ -6,18 +6,21 @@ pub const REGISTER_COUNT_MASK: u64 = REGISTER_CAPACITY - 1;
 pub const BUCKET_SIZE: usize = 8;
 
 #[derive(Debug)]
-pub struct Bucket {
+pub struct Bucket<T> {
     //elements: [Option<usize>; BUCKET_SIZE],
-    elements: [Option<FstState>; BUCKET_SIZE],
+    elements: [Option<T>; BUCKET_SIZE],
     count: usize,
 }
 
 ///NOTE
 ///This doesn't contain any lookup/search method because the actual state object is needed to check for equality.
 ///It will be implemented by the transducer itself.
-impl Bucket {
+impl<T> Bucket<T>
+where
+    T: AutomatonState + PartialEq,
+{
     fn new() -> Self {
-        let tmp: [Option<FstState>; BUCKET_SIZE] = array_init::array_init(|_| None);
+        let tmp: [Option<T>; BUCKET_SIZE] = array_init::array_init(|_| None);
 
         Self {
             elements: tmp,
@@ -25,13 +28,13 @@ impl Bucket {
         }
     }
 
-    fn insert(&mut self, elem: FstState) {
+    fn insert(&mut self, elem: T) {
         let i = self.count % BUCKET_SIZE;
         self.elements[i] = Some(elem);
         self.count += 1;
     }
 
-    pub fn get_elements(&self) -> &[Option<FstState>] {
+    pub fn get_elements(&self) -> &[Option<T>] {
         &self.elements
     }
 
@@ -41,25 +44,28 @@ impl Bucket {
 
     ///Check whether this bucket contains an equivalent state.
     ///If so return its address
-    fn contains_equivalent(&self, state: &FstState) -> Option<usize> {
+    fn contains_equivalent(&self, state: &T) -> Option<usize> {
         self.elements
             .iter()
             .filter_map(|x| x.as_ref())
             .find(|elem| {
                 return state.eq(*elem);
             })
-            .map(|state| state.id)
+            .map(|state| state.get_id())
     }
 }
 
 ///map of frozen states
 #[derive(Debug)]
-pub struct Register {
-    buckets: [Bucket; REGISTER_CAPACITY as usize],
+pub struct Register<T> {
+    buckets: [Bucket<T>; REGISTER_CAPACITY as usize],
     written_bytes: usize,
 }
 
-impl Register {
+impl<T> Register<T>
+where
+    T: AutomatonState + PartialEq,
+{
     pub fn new() -> Self {
         //const EMPTY_BUCKET: Bucket = Bucket {
         //    elements: [const { None }; BUCKET_SIZE],
@@ -76,7 +82,7 @@ impl Register {
 
     //TODO get rid of mod
     #[inline]
-    pub fn add_state(&mut self, state: FstState) {
+    pub fn add_state(&mut self, state: T) {
         //println!("adding state to register");
         //dbg!(&state);
         let state_hash = (self.hash(&state) % REGISTER_CAPACITY) as usize;
@@ -92,37 +98,41 @@ impl Register {
     //}
     //
     #[inline]
-    pub fn get_equivalent(&self, state: &FstState) -> Option<usize> {
+    pub fn get_equivalent(&self, state: &T) -> Option<usize> {
         let bucket_id = self.hash(state) % REGISTER_CAPACITY;
         let bucket = &self.buckets[bucket_id as usize];
         bucket.contains_equivalent(state)
     }
 
     #[inline]
-    fn hash(&self, state: &FstState) -> u64 {
+    fn hash(&self, state: &T) -> u64 {
         const FNV_PRIME: u64 = 1099511628211;
 
         let mut h: u64 = 14695981039346656037;
 
-        h = (h ^ state.is_final as u64).wrapping_mul(FNV_PRIME);
-        for t in state.transitions.iter() {
+        h = (h ^ state.is_final() as u64).wrapping_mul(FNV_PRIME);
+        for t in state.get_transitions().iter() {
             h = (h ^ (t.0 as u64)).wrapping_mul(FNV_PRIME);
             h = (h ^ (t.1 as u64)).wrapping_mul(FNV_PRIME);
         }
 
-        for o in state.outputs.iter() {
-            let value = o.get_value_as_deref();
-            match value {
-                Some(seq) => {
-                    for byte in seq {
-                        h = (h ^ (*byte as u64)).wrapping_mul(FNV_PRIME);
+        //working with an fst
+        if let Some(outputs) = state.get_outputs() {
+            for o in outputs.iter() {
+                let value = o.get_value_as_deref();
+                match value {
+                    Some(seq) => {
+                        for byte in seq {
+                            h = (h ^ (*byte as u64)).wrapping_mul(FNV_PRIME);
+                        }
                     }
-                }
-                None => {
-                    h = (h ^ 0).wrapping_mul(FNV_PRIME);
+                    None => {
+                        h = (h ^ 0).wrapping_mul(FNV_PRIME);
+                    }
                 }
             }
         }
+
         return h;
     }
 }

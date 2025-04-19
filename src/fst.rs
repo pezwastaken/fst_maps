@@ -24,7 +24,7 @@ pub struct Transducer<'a> {
     pub last_key_len: usize,
     pub last_value: [u8; 100],
     pub last_value_len: usize,
-    register: Register,
+    register: Register<FstState>,
     writer: RawWriter<'a>,
 }
 

@@ -309,9 +309,24 @@ impl AutomatonState for FstState {
         self.transitions.clear();
         self.outputs.clear();
     }
+
+    fn get_id(&self) -> usize {
+        self.id
+    }
+
+    fn is_final(&self) -> bool {
+        self.is_final
+    }
+
+    fn get_transitions(&self) -> &[(u8, usize)] {
+        &self.transitions
+    }
+
+    fn get_outputs(&self) -> Option<&[TransitionOutput]> {
+        Some(&self.outputs)
+    }
 }
 
-//TODO should also use outputs?
 //are both states in the same equivalence class
 impl PartialEq for FstState {
     fn eq(&self, other_state: &Self) -> bool {

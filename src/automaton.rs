@@ -17,4 +17,9 @@ pub trait AutomatonState {
     fn add_transition(&mut self, y: u8, new_state_id: usize);
 
     fn clear_state(&mut self);
+
+    fn get_id(&self) -> usize;
+    fn is_final(&self) -> bool;
+    fn get_transitions(&self) -> &[(u8, usize)];
+    fn get_outputs(&self) -> Option<&[TransitionOutput]>;
 }
