@@ -1,5 +1,5 @@
 use crate::automaton::AutomatonState;
-use crate::{fst_decoder::FstDecoder, fst_state::FstState};
+use crate::fst_decoder::FstDecoder;
 
 pub struct Map {
     decoder: FstDecoder,
@@ -73,6 +73,18 @@ mod map_from_file {
         assert!(res.is_some());
 
         assert_eq!(res.as_ref().unwrap(), "pizza".as_bytes());
+        dbg!(res.unwrap());
+    }
+
+    #[test]
+    fn get_3() {
+        let mut map = Map::new("test.fst");
+
+        let res = map.get("gatto".as_bytes());
+
+        assert!(res.is_some());
+
+        assert_eq!(res.as_ref().unwrap(), "mammifero".as_bytes());
         dbg!(res.unwrap());
     }
 }

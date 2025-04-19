@@ -1,6 +1,6 @@
-use bincode::{Decode, error::DecodeError};
+use bincode::error::DecodeError;
 use memmap2::{Mmap, MmapOptions};
-use std::{fmt::Debug, fs::File};
+use std::fs::File;
 
 use crate::fst_state::FstState;
 

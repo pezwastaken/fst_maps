@@ -13,15 +13,16 @@ use std::io::Write;
 //TODO parameterize the output file
 //
 ///Calling this function results in a fst being built and persisted to file
-pub fn build_transducer_from_collection(
+pub fn build_transducer_from_collection<'a>(
     //collection: Vec<(Vec<u8>, Vec<u8>)>,
     //input_stream: &mut T,
     filename: &str,
-) -> Result<Transducer<'_>, FstError>
+    output_to: &'a str,
+) -> Result<Transducer<'a>, FstError>
 //where
     //T: Iterator<Item = Vec<u8>>,
 {
-    let mut transducer = Transducer::new("indices/temp.fst");
+    let mut transducer = Transducer::new(output_to);
 
     transducer.push_zinit_state();
 
@@ -176,73 +177,75 @@ mod fst_builder_tests {
 
     #[test]
     fn file_5() {
-        let Ok(fst) = build_transducer_from_collection("maps/5.txt");
+        let Ok(fst) = build_transducer_from_collection("maps/5.txt", "indices/temp_5.fst");
 
-        dump_graph(&fst, "fst.dot");
+        //dump_graph(&fst, "fst.dot");
 
         //ensure_all_pairs(&fst, "maps/5.txt");
     }
 
-    //#[test]
-    //fn file_100() {
-    //    let Ok(fst) = build_transducer_from_collection("maps/100.txt");
+    #[test]
+    fn file_100() {
+        let Ok(fst) = build_transducer_from_collection("maps/100.txt", "indices/temp_100.fst");
+
+        //dump_graph(&fst, "fst.dot");
+
+        //ensure_all_pairs(&fst, "maps/100.txt");
+    }
     //
-    //    //dump_graph(&fst, "fst.dot");
+    #[test]
+    fn file_300() {
+        let Ok(fst) = build_transducer_from_collection("maps/300.txt", "indices/temp_300.fst");
+
+        //dump_graph(&fst, "fst.dot");
+
+        //ensure_all_pairs(&fst, "maps/300.txt");
+    }
+
+    #[test]
+    fn file_1000() {
+        let Ok(fst) = build_transducer_from_collection("maps/1000.txt", "indices/temp_1000.fst");
+
+        //dump_graph(&fst, "fst.dot");
+
+        //ensure_all_pairs(&fst, "maps/1000.txt");
+    }
     //
-    //    //ensure_all_pairs(&fst, "maps/100.txt");
-    //}
-    //
-    //#[test]
-    //fn file_300() {
-    //    let Ok(fst) = build_transducer_from_collection("maps/300.txt");
-    //
-    //    //dump_graph(&fst, "fst.dot");
-    //
-    //    //ensure_all_pairs(&fst, "maps/300.txt");
-    //}
-    //
-    //#[test]
-    //fn file_1000() {
-    //    let Ok(fst) = build_transducer_from_collection("maps/1000.txt");
-    //
-    //    //dump_graph(&fst, "fst.dot");
-    //
-    //    //ensure_all_pairs(&fst, "maps/1000.txt");
-    //}
-    //
-    //#[test]
-    //fn file_1000_2() {
-    //    let Ok(fst) = build_transducer_from_collection("maps/1000_2.txt");
-    //
-    //    //dump_graph(&fst, "fst.dot");
-    //
-    //    //ensure_all_pairs(&fst, "maps/1000_2.txt");
-    //}
-    //
-    //#[test]
-    //fn file_3000_random_values() {
-    //    let Ok(fst) = build_transducer_from_collection("maps/3000_rand.txt");
-    //
-    //    //dump_graph(&fst, "fst.dot");
-    //
-    //    //ensure_all_pairs(&fst, "maps/3000_rand.txt");
-    //}
-    //
-    //#[test]
-    //fn file_5000_altered() {
-    //    let Ok(fst) = build_transducer_from_collection("maps/5000_a.txt");
-    //
-    //    //dump_graph(&fst, "fst.dot");
-    //
-    //    //ensure_all_pairs(&fst, "maps/5000_a.txt");
-    //
-    //    //let res = fst.get("gigabitd".as_bytes());
-    //    //assert_eq!(res, None);
-    //    //let res = fst.get("gigabi".as_bytes());
-    //    //assert_eq!(res, None);
-    //    //let res = fst.get("gigabiz".as_bytes());
-    //    //assert_eq!(res, None);
-    //}
+    #[test]
+    fn file_1000_2() {
+        let Ok(fst) =
+            build_transducer_from_collection("maps/1000_2.txt", "indices/temp_1000_2.fst");
+
+        //dump_graph(&fst, "fst.dot");
+
+        //ensure_all_pairs(&fst, "maps/1000_2.txt");
+    }
+
+    #[test]
+    fn file_3000_random_values() {
+        let Ok(fst) =
+            build_transducer_from_collection("maps/3000_rand.txt", "indices/temp_3000.fst");
+
+        //dump_graph(&fst, "fst.dot");
+
+        //ensure_all_pairs(&fst, "maps/3000_rand.txt");
+    }
+
+    #[test]
+    fn file_5000_altered() {
+        let Ok(fst) = build_transducer_from_collection("maps/5000_a.txt", "indices/temp_5000.fst");
+
+        //dump_graph(&fst, "fst.dot");
+
+        //ensure_all_pairs(&fst, "maps/5000_a.txt");
+
+        //let res = fst.get("gigabitd".as_bytes());
+        //assert_eq!(res, None);
+        //let res = fst.get("gigabi".as_bytes());
+        //assert_eq!(res, None);
+        //let res = fst.get("gigabiz".as_bytes());
+        //assert_eq!(res, None);
+    }
     //
     //#[test]
     //fn file_tons() {

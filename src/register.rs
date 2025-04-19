@@ -1,4 +1,4 @@
-use crate::{automaton::AutomatonState, fst_state::FstState};
+use crate::fst_state::FstState;
 
 //must always be a power of 2
 pub const REGISTER_CAPACITY: u64 = 256;
@@ -20,7 +20,6 @@ impl Bucket {
         let tmp: [Option<FstState>; BUCKET_SIZE] = array_init::array_init(|_| None);
 
         Self {
-            //elements: [const { None }; BUCKET_SIZE],
             elements: tmp,
             count: 0,
         }
