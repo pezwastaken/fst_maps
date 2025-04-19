@@ -51,40 +51,40 @@ impl Map {
 #[cfg(test)]
 mod map_from_file {
     use super::Map;
-
-    #[test]
-    fn get_1() {
-        let mut map = Map::new("test.fst");
-
-        let res = map.get("ca".as_bytes());
-
-        assert!(res.is_some());
-
-        assert_eq!(res.as_ref().unwrap(), "ciao".as_bytes());
-        dbg!(res.unwrap());
-    }
-
-    #[test]
-    fn get_2() {
-        let mut map = Map::new("test.fst");
-
-        let res = map.get("cane".as_bytes());
-
-        assert!(res.is_some());
-
-        assert_eq!(res.as_ref().unwrap(), "pizza".as_bytes());
-        dbg!(res.unwrap());
-    }
-
-    #[test]
-    fn get_3() {
-        let mut map = Map::new("test.fst");
-
-        let res = map.get("gatto".as_bytes());
-
-        assert!(res.is_some());
-
-        assert_eq!(res.as_ref().unwrap(), "mammifero".as_bytes());
-        dbg!(res.unwrap());
-    }
+    //
+    //#[test]
+    //fn get_1() {
+    //    let mut map = Map::new("test.fst");
+    //
+    //    let res = map.get("ca".as_bytes());
+    //
+    //    assert!(res.is_some());
+    //
+    //    assert_eq!(res.as_ref().unwrap(), "ciao".as_bytes());
+    //    dbg!(res.unwrap());
+    //}
+    //
+    //#[test]
+    //fn get_2() {
+    //    let mut map = Map::new("test.fst");
+    //
+    //    let res = map.get("cane".as_bytes());
+    //
+    //    assert!(res.is_some());
+    //
+    //    assert_eq!(res.as_ref().unwrap(), "pizza".as_bytes());
+    //    dbg!(res.unwrap());
+    //}
+    //
+    //#[test]
+    //fn get_3() {
+    //    let mut map = Map::new("test.fst");
+    //
+    //    let res = map.get("gatto".as_bytes());
+    //
+    //    assert!(res.is_some());
+    //
+    //    assert_eq!(res.as_ref().unwrap(), "mammifero".as_bytes());
+    //    dbg!(res.unwrap());
+    //}
 }

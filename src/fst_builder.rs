@@ -180,8 +180,6 @@ mod fst_builder_tests {
         let Ok(fst) = build_transducer_from_collection("maps/5.txt", "indices/temp_5.fst");
 
         //dump_graph(&fst, "fst.dot");
-
-        //ensure_all_pairs(&fst, "maps/5.txt");
     }
 
     #[test]
@@ -189,8 +187,6 @@ mod fst_builder_tests {
         let Ok(fst) = build_transducer_from_collection("maps/100.txt", "indices/temp_100.fst");
 
         //dump_graph(&fst, "fst.dot");
-
-        //ensure_all_pairs(&fst, "maps/100.txt");
     }
     //
     #[test]
@@ -198,8 +194,6 @@ mod fst_builder_tests {
         let Ok(fst) = build_transducer_from_collection("maps/300.txt", "indices/temp_300.fst");
 
         //dump_graph(&fst, "fst.dot");
-
-        //ensure_all_pairs(&fst, "maps/300.txt");
     }
 
     #[test]
@@ -207,8 +201,6 @@ mod fst_builder_tests {
         let Ok(fst) = build_transducer_from_collection("maps/1000.txt", "indices/temp_1000.fst");
 
         //dump_graph(&fst, "fst.dot");
-
-        //ensure_all_pairs(&fst, "maps/1000.txt");
     }
     //
     #[test]
@@ -217,8 +209,6 @@ mod fst_builder_tests {
             build_transducer_from_collection("maps/1000_2.txt", "indices/temp_1000_2.fst");
 
         //dump_graph(&fst, "fst.dot");
-
-        //ensure_all_pairs(&fst, "maps/1000_2.txt");
     }
 
     #[test]
@@ -227,8 +217,6 @@ mod fst_builder_tests {
             build_transducer_from_collection("maps/3000_rand.txt", "indices/temp_3000.fst");
 
         //dump_graph(&fst, "fst.dot");
-
-        //ensure_all_pairs(&fst, "maps/3000_rand.txt");
     }
 
     #[test]
@@ -236,55 +224,13 @@ mod fst_builder_tests {
         let Ok(fst) = build_transducer_from_collection("maps/5000_a.txt", "indices/temp_5000.fst");
 
         //dump_graph(&fst, "fst.dot");
-
-        //ensure_all_pairs(&fst, "maps/5000_a.txt");
-
-        //let res = fst.get("gigabitd".as_bytes());
-        //assert_eq!(res, None);
-        //let res = fst.get("gigabi".as_bytes());
-        //assert_eq!(res, None);
-        //let res = fst.get("gigabiz".as_bytes());
-        //assert_eq!(res, None);
     }
-    //
-    //#[test]
-    //fn file_tons() {
-    //    let Ok(fst) = build_transducer_from_collection("maps/tons_of_pairs.txt");
-    //
-    //    //dump_graph(&fst, "fst.dot");
-    //
-    //    //ensure_all_pairs(&fst, "maps/tons_of_pairs.txt");
-    //
-    //    //let res = fst.get("heyy".as_bytes());
-    //    //assert_eq!(res, None);
-    //    //let res = fst.get("phil".as_bytes());
-    //    //assert_eq!(res, None);
-    //    //let res = fst.get("zappe".as_bytes());
-    //    //assert_eq!(res, None);
-    //}
-    //
-    fn ensure_all_pairs(fst: &Transducer<'_>, filename: &str) {
-        if let Ok(lines) = read_lines(filename) {
-            for line in lines.map_while(Result::ok) {
-                //convert lines to bytes
-                let bytes: &[u8] = &line.as_bytes();
 
-                let (key, value): (&[u8], &[u8]) =
-                    parse_line(bytes).expect("No lines should be empty!");
+    #[test]
+    fn file_tons() {
+        let Ok(fst) =
+            build_transducer_from_collection("maps/tons_of_pairs.txt", "indices/tons.fst");
 
-                //println!("ensuring key: {}", std::str::from_utf8(key).unwrap());
-
-                //get value back from fst
-                let value_from_fst = fst.get(&key);
-                assert!(value_from_fst.is_some());
-
-                assert_eq!(
-                    std::str::from_utf8(value).unwrap(),
-                    std::str::from_utf8(&value_from_fst.unwrap()).unwrap()
-                );
-            }
-        } else {
-            panic!("couldn't open file {filename}");
-        }
+        //dump_graph(&fst, "fst.dot");
     }
 }

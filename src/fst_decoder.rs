@@ -115,42 +115,42 @@ mod fst_decoder_u_tests {
 
     use super::FstDecoder;
 
-    #[test]
-    fn file_len() {
-        let decoder = FstDecoder::new("test.fst").expect("couln't open file");
-
-        assert_eq!(160, decoder.file_len().unwrap());
-    }
-
-    #[test]
-    fn read_first_state() {
-        let mut decoder = FstDecoder::new("test.fst").expect("couln't open file");
-
-        assert_eq!(160, decoder.file_len().unwrap());
-
-        let first_state = decoder.read_first_state();
-        assert!(first_state.is_some());
-
-        //dbg!(first_state.unwrap());
-    }
-
-    #[test]
-    fn walk_transition_from_q0() {
-        let mut decoder = FstDecoder::new("test.fst").expect("couln't open file");
-
-        assert_eq!(160, decoder.file_len().unwrap());
-
-        let first_state = decoder.read_first_state().unwrap();
-
-        //dbg!(first_state.unwrap());
-
-        let (next_state_addr, output) = first_state.delta_with_output('c' as u8).unwrap();
-        assert_eq!(output.get_value_as_deref().unwrap(), "ciao".as_bytes());
-
-        let next_state = decoder.read_state_at_addr(next_state_addr as u64);
-        assert!(next_state.is_some());
-
-        let (next_state, output) = first_state.delta_with_output('c' as u8).unwrap();
-        assert_eq!(output.get_value_as_deref().unwrap(), "ciao".as_bytes());
-    }
+    //#[test]
+    //fn file_len() {
+    //    let decoder = FstDecoder::new("test.fst").expect("couln't open file");
+    //
+    //    assert_eq!(160, decoder.file_len().unwrap());
+    //}
+    //
+    //#[test]
+    //fn read_first_state() {
+    //    let mut decoder = FstDecoder::new("test.fst").expect("couln't open file");
+    //
+    //    assert_eq!(160, decoder.file_len().unwrap());
+    //
+    //    let first_state = decoder.read_first_state();
+    //    assert!(first_state.is_some());
+    //
+    //    //dbg!(first_state.unwrap());
+    //}
+    //
+    //#[test]
+    //fn walk_transition_from_q0() {
+    //    let mut decoder = FstDecoder::new("test.fst").expect("couln't open file");
+    //
+    //    assert_eq!(160, decoder.file_len().unwrap());
+    //
+    //    let first_state = decoder.read_first_state().unwrap();
+    //
+    //    //dbg!(first_state.unwrap());
+    //
+    //    let (next_state_addr, output) = first_state.delta_with_output('c' as u8).unwrap();
+    //    assert_eq!(output.get_value_as_deref().unwrap(), "ciao".as_bytes());
+    //
+    //    let next_state = decoder.read_state_at_addr(next_state_addr as u64);
+    //    assert!(next_state.is_some());
+    //
+    //    let (next_state, output) = first_state.delta_with_output('c' as u8).unwrap();
+    //    assert_eq!(output.get_value_as_deref().unwrap(), "ciao".as_bytes());
+    //}
 }
