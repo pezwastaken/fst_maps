@@ -175,61 +175,81 @@ mod fst_builder_tests {
     use super::parse_line;
     use super::read_lines;
 
+    const SHOULD_BUILD: bool = false;
+
     #[test]
     fn file_5() {
-        let Ok(fst) = build_transducer_from_collection("maps/5.txt", "indices/temp_5.fst");
+        if SHOULD_BUILD {
+            let Ok(fst) = build_transducer_from_collection("maps/5.txt", "indices/temp_5.fst");
+        }
 
         //dump_graph(&fst, "fst.dot");
     }
 
     #[test]
     fn file_100() {
-        let Ok(fst) = build_transducer_from_collection("maps/100.txt", "indices/temp_100.fst");
+        if SHOULD_BUILD {
+            let Ok(fst) = build_transducer_from_collection("maps/100.txt", "indices/temp_100.fst");
+        }
 
         //dump_graph(&fst, "fst.dot");
     }
     //
     #[test]
     fn file_300() {
-        let Ok(fst) = build_transducer_from_collection("maps/300.txt", "indices/temp_300.fst");
+        if SHOULD_BUILD {
+            let Ok(fst) = build_transducer_from_collection("maps/300.txt", "indices/temp_300.fst");
+        }
 
         //dump_graph(&fst, "fst.dot");
     }
 
     #[test]
     fn file_1000() {
-        let Ok(fst) = build_transducer_from_collection("maps/1000.txt", "indices/temp_1000.fst");
+        if SHOULD_BUILD {
+            let Ok(fst) =
+                build_transducer_from_collection("maps/1000.txt", "indices/temp_1000.fst");
+        }
 
         //dump_graph(&fst, "fst.dot");
     }
     //
     #[test]
     fn file_1000_2() {
-        let Ok(fst) =
-            build_transducer_from_collection("maps/1000_2.txt", "indices/temp_1000_2.fst");
+        if SHOULD_BUILD {
+            let Ok(fst) =
+                build_transducer_from_collection("maps/1000_2.txt", "indices/temp_1000_2.fst");
+        }
 
         //dump_graph(&fst, "fst.dot");
     }
 
     #[test]
     fn file_3000_random_values() {
-        let Ok(fst) =
-            build_transducer_from_collection("maps/3000_rand.txt", "indices/temp_3000.fst");
+        if SHOULD_BUILD {
+            let Ok(fst) =
+                build_transducer_from_collection("maps/3000_rand.txt", "indices/temp_3000.fst");
+        }
 
         //dump_graph(&fst, "fst.dot");
     }
 
     #[test]
     fn file_5000_altered() {
-        let Ok(fst) = build_transducer_from_collection("maps/5000_a.txt", "indices/temp_5000.fst");
+        if SHOULD_BUILD {
+            let Ok(fst) =
+                build_transducer_from_collection("maps/5000_a.txt", "indices/temp_5000.fst");
+        }
 
         //dump_graph(&fst, "fst.dot");
     }
 
     #[test]
     fn file_tons() {
-        let Ok(fst) =
-            build_transducer_from_collection("maps/tons_of_pairs.txt", "indices/tons.fst");
+        if SHOULD_BUILD {
+            let Ok(fst) =
+                build_transducer_from_collection("maps/tons_of_pairs.txt", "indices/tons.fst");
+        }
 
         //dump_graph(&fst, "fst.dot");
     }

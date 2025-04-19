@@ -12,11 +12,11 @@ impl Set {
         }
     }
 
-    pub fn contains(&mut self, key: &[u8]) -> bool {
+    pub fn contains(&self, key: &[u8]) -> bool {
         self.delta_star(key)
     }
 
-    fn delta_star(&mut self, input_tape: &[u8]) -> bool {
+    fn delta_star(&self, input_tape: &[u8]) -> bool {
         let Some(mut current_state) = self.decoder.read_first_state::<FsaState>() else {
             panic!("couldn't decode first state given mmapped file");
         };
@@ -26,7 +26,7 @@ impl Set {
                 return false;
             };
 
-            match self.decoder.read_state_at_addr(next_state_addr as u64) {
+            match self.decoder.read_state_at_addr(next_state_addr as usize) {
                 Some(state) => current_state = state,
                 None => return false,
             }

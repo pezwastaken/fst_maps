@@ -49,6 +49,10 @@ pub fn build_fsa<'a>(filename: &str, output_to: &'a str) -> Option<Acceptor<'a>>
     }
 
     fsa.replace_or_register(0);
+    //fsa.states.push(fsa.states[0].clone());
+
+    fsa.persist_initial_state();
+    println!("fsa output to file!");
 
     Some(fsa)
 }
@@ -61,5 +65,5 @@ fn read_lines(filename: &str) -> io::Result<io::Lines<io::BufReader<File>>> {
 
 #[test]
 fn test_1() {
-    build_fsa("sets_data/5.txt", "sets/5.fsa");
+    assert!(build_fsa("sets_data/5.txt", "sets/5.fsa").is_some());
 }

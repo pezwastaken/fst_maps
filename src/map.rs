@@ -38,7 +38,7 @@ impl Map {
                 None => {}
             }
 
-            current_state = self.decoder.read_state_at_addr(next_state_addr as u64)?
+            current_state = self.decoder.read_state_at_addr(next_state_addr)?
         }
 
         if current_state.is_final {

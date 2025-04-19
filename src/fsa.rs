@@ -174,29 +174,6 @@ impl<'a> Acceptor<'a> {
             .is_final
     }
 
-    pub fn delta_star(&self, state: usize, input_tape: &str) -> Option<usize> {
-        unimplemented!()
-        //assert!(self.states.len() > 0);
-        //let mut current_state = state;
-        //
-        //for byte in input_tape.as_bytes().iter() {
-        //    if let Some(new_state) = self.states[current_state].delta(*byte) {
-        //        //move to new state
-        //        assert!(current_state != new_state);
-        //        current_state = new_state;
-        //    } else {
-        //        return None;
-        //    }
-        //}
-        //
-        //return Some(current_state);
-    }
-
-    #[inline]
-    pub fn delta_star_from_initial_state(&self, input_tape: &str) -> Option<usize> {
-        self.delta_star(0, input_tape)
-    }
-
     //get the index of the last prefix character inside y
     pub fn common_prefix(&self, y: &[u8]) -> usize {
         //TODO SIMD it using chunk_exact
