@@ -1,4 +1,4 @@
-use crate::{automaton::AutomatonState, fsa::FsaState, fst_decoder::AutomatonDecoder};
+use crate::{automaton::AutomatonState, automaton_decoder::AutomatonDecoder, fsa::FsaState};
 
 pub struct Set {
     decoder: AutomatonDecoder,
@@ -35,4 +35,3 @@ impl Set {
         current_state.is_final()
     }
 }
-

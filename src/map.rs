@@ -1,5 +1,5 @@
 use crate::automaton::AutomatonState;
-use crate::fst_decoder::AutomatonDecoder;
+use crate::automaton_decoder::AutomatonDecoder;
 use crate::fst_state::FstState;
 
 pub struct Map {

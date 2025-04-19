@@ -145,7 +145,7 @@ pub struct Acceptor<'a> {
 }
 
 impl<'a> Acceptor<'a> {
-    pub fn new(alphabet_dim: usize) -> Self {
+    pub fn new(alphabet_dim: usize, output_to: &'a str) -> Self {
         let mut tmp = Vec::with_capacity(alphabet_dim);
 
         tmp.push(FsaState {
@@ -154,7 +154,7 @@ impl<'a> Acceptor<'a> {
             transitions: Vec::new(),
         });
 
-        if let Ok(wr) = RawWriter::new("test_fsa.fsa") {
+        if let Ok(wr) = RawWriter::new(output_to) {
             Acceptor {
                 states: tmp.into(),
                 last_str: [0; 100],
@@ -198,14 +198,12 @@ impl<'a> Acceptor<'a> {
     }
 
     //get the index of the last prefix character inside y
-    pub fn common_prefix(&self, y: &str) -> usize {
-        let y_bytes = y.as_bytes();
-
+    pub fn common_prefix(&self, y: &[u8]) -> usize {
         //TODO SIMD it using chunk_exact
         let prefix_len = self
             .last_str
             .iter()
-            .zip(y_bytes)
+            .zip(y)
             .take_while(|(x, y)| x == y)
             .count();
 
@@ -251,23 +249,11 @@ impl<'a> Acceptor<'a> {
 
     //assume state has children
     pub fn replace_or_register(&mut self, state_index: usize) {
-        //println!("called ror on state {state_index}");
         let state = &self.states[state_index];
-        //println!("state:  {:?}", state);
         assert!(state.has_children());
-
-        //println!("has children is {}", state.has_children());
-
-        //let last_transition = self.states[state.last_child().unwrap()]
-        //    .transitions
-        //    .last()
-        //    .expect("replace or register called on state without outgoing transitions");
-        //let last_transition = &self.states[state.last_child().unwrap()];
 
         //get the state `id` of the last outgoing transition from current state
         let child_index = state.last_child().unwrap();
-
-        //println!("last child index is {}", child_index);
 
         if self.state_has_children(child_index) {
             self.replace_or_register(child_index);
@@ -275,20 +261,14 @@ impl<'a> Acceptor<'a> {
 
         //merge states added by previous add_suffix_to_fsa that are equivalent to the ones in the register
         if let Some(state_to_merge_with) = self.register_contains_equivalent(child_index) {
-            //
             //now get a mutable reference to the state who's child is to be merged
             let current_state = &mut self.states[state_index];
 
             //merge last child
             current_state.merge_with(state_to_merge_with);
 
-            //let state_id = current_state.id;
-
             self.states.pop();
         } else {
-            //let child = self.states[child_index].clone();
-            ////self.register.add_state(child, child_index);
-            //self.register.add_state(child);
             match self.add_to_register(child_index) {
                 Ok(written_bytes) => {
                     let current_state = &mut self.states[state_index];
@@ -311,11 +291,10 @@ impl<'a> Acceptor<'a> {
         let address = self.persist_state(i)?;
 
         let mut state = self.states.pop().unwrap();
+        state.transitions.shrink_to_fit();
         state.id = address;
 
         self.register.add_state(state);
-
-        //self.states.pop();
 
         Ok(address)
     }

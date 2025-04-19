@@ -33,6 +33,7 @@ impl AutomatonDecoder {
 
     fn try_decode_fixed_int(&self) -> Result<usize, DecodeError> {
         if let Some(bytes) = self.mmap.as_ref() {
+            //let config = bincode::config::standard().with_fixed_int_encoding();
             let config = bincode::config::standard().with_fixed_int_encoding();
 
             let decoded = bincode::decode_from_slice::<usize, _>(bytes, config);

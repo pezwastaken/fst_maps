@@ -2,11 +2,11 @@
 #![allow(dead_code)]
 
 mod automaton;
+mod automaton_decoder;
 mod fsa;
 mod fsa_builder;
 mod fst;
 mod fst_builder;
-mod fst_decoder;
 mod fst_state;
 mod map;
 mod raw_writer;
