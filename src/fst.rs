@@ -247,7 +247,7 @@ impl<'a> Transducer<'a> {
     pub fn persist_state(&mut self, i: usize) -> Result<usize, EncodeError> {
         let state = &self.temp_states[i];
 
-        let wrote = self.writer.write_state(state)?;
+        let wrote = self.writer.write_state::<FstState>(state)?;
 
         //this is the address that is to be returned
         let total_written_bytes = self.writer.get_written_bytes();

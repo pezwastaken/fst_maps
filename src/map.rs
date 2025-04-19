@@ -1,13 +1,14 @@
 use crate::automaton::AutomatonState;
-use crate::fst_decoder::FstDecoder;
+use crate::fst_decoder::AutomatonDecoder;
+use crate::fst_state::FstState;
 
 pub struct Map {
-    decoder: FstDecoder,
+    decoder: AutomatonDecoder,
 }
 
 impl Map {
     pub fn new(fst_file: &str) -> Self {
-        match FstDecoder::new(fst_file) {
+        match AutomatonDecoder::new(fst_file) {
             Ok(tmp) => Self { decoder: tmp },
             Err(e) => panic!("error while creating fst_decoder {e:?}"),
         }
@@ -18,7 +19,7 @@ impl Map {
     }
 
     fn delta_star(&mut self, input_tape: &[u8]) -> Option<Vec<u8>> {
-        let Some(mut current_state) = self.decoder.read_first_state() else {
+        let Some(mut current_state) = self.decoder.read_first_state::<FstState>() else {
             panic!("couldn't decode first state given mmapped file");
         };
 

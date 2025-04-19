@@ -2,9 +2,10 @@ use std::fs::File;
 
 use std::io::{self, BufWriter};
 
+use bincode::Encode;
 use bincode::error::EncodeError;
 
-use crate::fst_state::FstState;
+use crate::automaton::AutomatonState;
 
 #[derive(Debug)]
 pub struct RawWriter<'a> {
@@ -30,7 +31,10 @@ impl<'a> RawWriter<'a> {
 
     //TODO?
     //this could be a generic state (maybe)
-    pub fn write_state(&mut self, state: &FstState) -> Result<usize, EncodeError> {
+    pub fn write_state<T>(&mut self, state: &T) -> Result<usize, EncodeError>
+    where
+        T: AutomatonState + Encode,
+    {
         let wrote = bincode::encode_into_std_write(
             &state,
             &mut self.inner_writer,

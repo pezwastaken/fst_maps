@@ -3,6 +3,7 @@
 
 mod automaton;
 mod fsa;
+mod fsa_builder;
 mod fst;
 mod fst_builder;
 mod fst_decoder;
@@ -10,6 +11,7 @@ mod fst_state;
 mod map;
 mod raw_writer;
 mod register;
+mod set;
 
 #[allow(unused)]
 #[cfg(test)]

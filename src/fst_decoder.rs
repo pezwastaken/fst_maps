@@ -1,15 +1,15 @@
-use bincode::error::DecodeError;
+use bincode::{Decode, error::DecodeError};
 use memmap2::{Mmap, MmapOptions};
 use std::fs::File;
 
-use crate::fst_state::FstState;
+use crate::automaton::AutomatonState;
 
-pub struct FstDecoder {
+pub struct AutomatonDecoder {
     mmap: Option<Mmap>,
     file: File,
 }
 
-impl FstDecoder {
+impl AutomatonDecoder {
     pub fn new(f: &str) -> std::io::Result<Self> {
         Ok(Self {
             mmap: None,
@@ -17,10 +17,12 @@ impl FstDecoder {
         })
     }
 
-    fn try_decode_state(&self) -> Result<FstState, DecodeError> {
+    fn try_decode_state<T>(&self) -> Result<T, DecodeError>
+    where
+        T: AutomatonState + Decode<()>,
+    {
         if let Some(bytes) = self.mmap.as_ref() {
-            let decoded =
-                bincode::decode_from_slice::<FstState, _>(bytes, bincode::config::standard());
+            let decoded = bincode::decode_from_slice::<T, _>(bytes, bincode::config::standard());
             //simply return the object while discarding the number of read bytes
             decoded.map(|(obj, _)| obj)
             //
@@ -61,18 +63,24 @@ impl FstDecoder {
         }
     }
 
-    pub fn read_first_state(&mut self) -> Option<FstState> {
+    pub fn read_first_state<T>(&mut self) -> Option<T>
+    where
+        T: AutomatonState + Decode<()>,
+    {
         const FIXED_U64_LEN: u64 = 8;
 
         let file_len = self.file_len()?;
         let offset = file_len - FIXED_U64_LEN;
 
-        self.read_state_at_addr(offset)
+        self.read_state_at_addr::<T>(offset)
     }
 
     ///decodes an fst state given its address by first deserializing its length (fixed 8 bytes
     ///starting from addr)
-    pub fn read_state_at_addr(&mut self, addr: u64) -> Option<FstState> {
+    pub fn read_state_at_addr<T>(&mut self, addr: u64) -> Option<T>
+    where
+        T: AutomatonState + Decode<()>,
+    {
         const FIXED_U64_LEN: u64 = 8;
 
         self.mmap_buf(addr, FIXED_U64_LEN as usize);
@@ -94,7 +102,7 @@ impl FstDecoder {
         //remap file using the new offset and first state len as the buffer length
         self.mmap_buf(offset, state_len);
 
-        let Ok(state) = self.try_decode_state() else {
+        let Ok(state) = self.try_decode_state::<T>() else {
             eprintln!(
                 "couldn't decode state starting from offset {} with len {} from file {:?}",
                 offset,
@@ -113,7 +121,7 @@ impl FstDecoder {
 mod fst_decoder_u_tests {
     use crate::automaton::AutomatonState;
 
-    use super::FstDecoder;
+    use super::AutomatonDecoder;
 
     //#[test]
     //fn file_len() {

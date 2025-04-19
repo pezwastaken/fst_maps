@@ -1,4 +1,4 @@
-use crate::{automaton::AutomatonState, fst_state::FstState};
+use crate::automaton::AutomatonState;
 
 //must always be a power of 2
 pub const REGISTER_CAPACITY: u64 = 256;
