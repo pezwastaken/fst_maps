@@ -119,8 +119,8 @@ impl<'a> Transducer<'a> {
         from_state: usize,
         seen_final_state: Option<usize>,
     ) {
-        println!("called insert pair with from_state: {from_state}");
-        dbg!(seen_final_state);
+        //println!("called insert pair with from_state: {from_state}");
+        //dbg!(seen_final_state);
 
         let suffix = &key[key_prefix_len..];
         self.add_suffix_to_fsa(from_state, suffix);
@@ -252,18 +252,30 @@ impl<'a> Transducer<'a> {
         //this is the address that is to be returned
         let total_written_bytes = self.writer.get_written_bytes();
 
-        match self.writer.write_fixed_int(wrote) {
+        match self.writer.write_int(wrote) {
             Ok(_) => Ok(total_written_bytes),
             Err(e) => panic!("error while writing fixed int: {e:?}"),
         }
     }
 
-    pub fn persist_initial_state(&mut self) {
-        //write initial state
-        self.persist_state(0)
-            .expect("couldn't persist initial state to file");
+    pub fn persist_initial_state(&mut self) -> Result<usize, EncodeError> {
+        let state = &self.temp_states[0];
 
-        dbg!(&self.temp_states[0]);
+        let wrote = self.writer.write_state::<FstState>(&state)?;
+
+        //this is the address that is to be returned
+        let total_written_bytes = self.writer.get_written_bytes();
+
+        match self.writer.write_fixed_int(wrote) {
+            Ok(_) => Ok(total_written_bytes),
+            Err(e) => panic!("error while writing fixed int: {e:?}"),
+        }
+
+        ////write initial state
+        //self.persist_state(0)
+        //    .expect("couldn't persist initial state to file");
+        //
+        //dbg!(&self.temp_states[0]);
         //
         ////write its len (in terms of bytes) to file.
         //match self.writer.write_fixed_int(wrote) {
@@ -359,8 +371,8 @@ impl<'a> Transducer<'a> {
         value: &[u8],
         //) -> Vec<u8> {
     ) {
-        println!("first state index: {first_state_index}");
-        println!("last state index: {last_state_index}");
+        //println!("first state index: {first_state_index}");
+        //println!("last state index: {last_state_index}");
         assert!(first_state_index <= last_state_index);
 
         let mut diff = None;

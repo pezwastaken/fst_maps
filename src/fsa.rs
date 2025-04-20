@@ -246,16 +246,28 @@ impl<'a> Acceptor<'a> {
         //this is the address that is to be returned
         let total_written_bytes = self.writer.get_written_bytes();
 
-        match self.writer.write_fixed_int(wrote) {
+        match self.writer.write_int(wrote) {
             Ok(_) => Ok(total_written_bytes),
             Err(e) => panic!("error while writing fixed int: {e:?}"),
         }
     }
 
-    pub fn persist_initial_state(&mut self) {
-        //write initial state
-        self.persist_state(0)
-            .expect("couldn't persist initial state to file");
+    pub fn persist_initial_state(&mut self) -> Result<usize, EncodeError> {
+        let state = &self.states[0];
+
+        let wrote = self.writer.write_state::<InnerFsaState>(&state.inner)?;
+
+        //this is the address that is to be returned
+        let total_written_bytes = self.writer.get_written_bytes();
+
+        match self.writer.write_fixed_int(wrote) {
+            Ok(_) => Ok(total_written_bytes),
+            Err(e) => panic!("error while writing fixed int: {e:?}"),
+        }
+
+        ////write initial state
+        //self.persist_state(0)
+        //    .expect("couldn't persist initial state to file");
     }
 
     pub fn state_has_children(&self, state_index: usize) -> bool {

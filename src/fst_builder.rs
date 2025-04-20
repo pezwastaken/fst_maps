@@ -75,7 +75,9 @@ pub fn build_transducer_from_collection<'a>(
     transducer.replace_or_register(0);
     transducer.states.push(transducer.temp_states[0].clone());
 
-    transducer.persist_initial_state();
+    transducer
+        .persist_initial_state()
+        .expect("couldn't serialize initial state");
     println!("fst output to file!");
 
     return Ok(transducer);
@@ -113,7 +115,7 @@ fn parse_line(line: &[u8]) -> Option<(&[u8], &[u8])> {
 pub fn dump_graph(fst: &Transducer<'_>, file_path: &str) -> io::Result<()> {
     println!("states in dump graph");
     //dbg!(&fst.temp_states[0]);
-    dbg!(&fst.states);
+    //dbg!(&fst.states);
 
     let mut file = File::create(file_path)?;
 
@@ -177,83 +179,4 @@ mod fst_builder_tests {
     //use super::dump_graph;
     use super::parse_line;
     use super::read_lines;
-
-    const SHOULD_BUILD: bool = false;
-
-    #[test]
-    fn file_5() {
-        if SHOULD_BUILD {
-            let Ok(fst) = build_transducer_from_collection("maps/5.txt", "indices/temp_5.fst");
-        }
-
-        //dump_graph(&fst, "fst.dot");
-    }
-
-    #[test]
-    fn file_100() {
-        if SHOULD_BUILD {
-            let Ok(fst) = build_transducer_from_collection("maps/100.txt", "indices/temp_100.fst");
-        }
-
-        //dump_graph(&fst, "fst.dot");
-    }
-    //
-    #[test]
-    fn file_300() {
-        if SHOULD_BUILD {
-            let Ok(fst) = build_transducer_from_collection("maps/300.txt", "indices/temp_300.fst");
-        }
-
-        //dump_graph(&fst, "fst.dot");
-    }
-
-    #[test]
-    fn file_1000() {
-        if SHOULD_BUILD {
-            let Ok(fst) =
-                build_transducer_from_collection("maps/1000.txt", "indices/temp_1000.fst");
-        }
-
-        //dump_graph(&fst, "fst.dot");
-    }
-    //
-    #[test]
-    fn file_1000_2() {
-        if SHOULD_BUILD {
-            let Ok(fst) =
-                build_transducer_from_collection("maps/1000_2.txt", "indices/temp_1000_2.fst");
-        }
-
-        //dump_graph(&fst, "fst.dot");
-    }
-
-    #[test]
-    fn file_3000_random_values() {
-        if SHOULD_BUILD {
-            let Ok(fst) =
-                build_transducer_from_collection("maps/3000_rand.txt", "indices/temp_3000.fst");
-        }
-
-        //dump_graph(&fst, "fst.dot");
-    }
-
-    #[test]
-    fn file_5000_altered() {
-        if SHOULD_BUILD {
-            let Ok(fst) =
-                build_transducer_from_collection("maps/5000_a.txt", "indices/temp_5000.fst");
-        }
-
-        //dump_graph(&fst, "fst.dot");
-    }
-
-    #[test]
-    fn file_tons() {
-        if SHOULD_BUILD {
-            let Ok(fst) =
-                build_transducer_from_collection("maps/tons_of_pairs.txt", "indices/tons.fst");
-        }
-
-        //dump_graph(&fst, "fst.dot");
-    }
 }

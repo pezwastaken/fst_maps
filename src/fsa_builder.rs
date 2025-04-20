@@ -51,7 +51,8 @@ pub fn build_fsa<'a>(filename: &str, output_to: &'a str) -> Option<Acceptor<'a>>
     fsa.replace_or_register(0);
     //fsa.states.push(fsa.states[0].clone());
 
-    fsa.persist_initial_state();
+    fsa.persist_initial_state()
+        .expect("couldn't serialize initial state");
     println!("fsa output to file!");
 
     Some(fsa)

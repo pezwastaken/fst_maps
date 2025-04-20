@@ -38,7 +38,7 @@ impl Map {
                 None => {}
             }
 
-            current_state = self.decoder.read_state_at_addr(next_state_addr)?
+            current_state = self.decoder.read_state_at_addr(next_state_addr, false)?
         }
 
         if current_state.is_final {

@@ -2,8 +2,6 @@ use bincode::{Decode, error::DecodeError};
 use memmap2::{Mmap, MmapOptions};
 use std::fs::File;
 
-use crate::automaton::WithAddress;
-
 pub struct AutomatonDecoder {
     mmap: Option<Mmap>,
     file: File,
@@ -40,14 +38,19 @@ impl AutomatonDecoder {
         }
     }
 
-    fn try_decode_fixed_int(&self, offset: usize, len: usize) -> Result<usize, DecodeError> {
+    fn try_decode_int(&self, offset: usize, is_fixed_int: bool) -> Result<usize, DecodeError> {
         if let Some(bytes) = self.mmap.as_ref() {
             //let config = bincode::config::standard().with_fixed_int_encoding();
-            let upper_bound = offset + len;
-            let config = bincode::config::standard().with_fixed_int_encoding();
+            //let upper_bound = offset + len;
 
-            let decoded =
-                bincode::decode_from_slice::<usize, _>(&bytes[offset..upper_bound], config);
+            let decoded;
+            if !is_fixed_int {
+                let config = bincode::config::standard();
+                decoded = bincode::decode_from_slice::<usize, _>(&bytes[offset..], config);
+            } else {
+                let config = bincode::config::standard().with_fixed_int_encoding();
+                decoded = bincode::decode_from_slice::<usize, _>(&bytes[offset..], config);
+            }
 
             //simply return the integer while discarding the number of read bytes
             decoded.map(|(obj, _)| obj)
@@ -84,12 +87,12 @@ impl AutomatonDecoder {
         let file_len = self.file_len()?;
         let offset = file_len as usize - FIXED_U64_LEN;
 
-        self.read_state_at_addr::<T>(offset)
+        self.read_state_at_addr::<T>(offset, true)
     }
 
     ///decodes an fst state given its address by first deserializing its length (fixed 8 bytes
     ///starting from addr)
-    pub fn read_state_at_addr<T>(&self, addr: usize) -> Option<T>
+    pub fn read_state_at_addr<T>(&self, addr: usize, is_initial_state: bool) -> Option<T>
     where
         T: Decode<()>,
     {
@@ -99,7 +102,7 @@ impl AutomatonDecoder {
 
         //len (in bytes) of the initial state
         //conversion is safe
-        let Ok(state_len) = self.try_decode_fixed_int(addr, FIXED_U64_LEN as usize) else {
+        let Ok(state_len) = self.try_decode_int(addr, is_initial_state) else {
             eprintln!(
                 "couldn't decode fixed int starting from offset {} with len {} from file {:?}",
                 addr,
@@ -109,7 +112,6 @@ impl AutomatonDecoder {
             return None;
         };
 
-        //safe
         let offset = addr - state_len;
         //remap file using the new offset and first state len as the buffer length
         //self.mmap_buf(offset, state_len);

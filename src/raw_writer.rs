@@ -27,8 +27,6 @@ impl<'a> RawWriter<'a> {
         self.written_bytes
     }
 
-    //TODO?
-    //this could be a generic state (maybe)
     pub fn write_state<T>(&mut self, state: &T) -> Result<usize, EncodeError>
     where
         T: Encode,
@@ -43,6 +41,16 @@ impl<'a> RawWriter<'a> {
             return Ok(b);
         }
         wrote
+    }
+
+    ///Writes an int with fixed length encoding
+    pub fn write_int(&mut self, x: usize) -> Result<(), EncodeError> {
+        let config = bincode::config::standard();
+
+        let wrote = bincode::encode_into_std_write(x, &mut self.inner_writer, config)?;
+
+        self.written_bytes += wrote;
+        Ok(())
     }
 
     ///Writes an int with fixed length encoding
