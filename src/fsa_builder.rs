@@ -14,6 +14,8 @@ pub fn build_fsa<'a>(filename: &str, output_to: &'a str) -> Option<Acceptor<'a>>
         for line in lines.map_while(Result::ok) {
             let bytes = &line.as_bytes();
 
+            assert_ne!(bytes.len(), 0);
+
             let item = bytes;
             //index of last character of common prefix between current item and the last
             //processed word
@@ -49,12 +51,13 @@ pub fn build_fsa<'a>(filename: &str, output_to: &'a str) -> Option<Acceptor<'a>>
     }
 
     fsa.replace_or_register(0);
-    //fsa.states.push(fsa.states[0].clone());
 
-    fsa.persist_initial_state()
-        .expect("couldn't serialize initial state");
+    match fsa.persist_initial_state() {
+        Err(e) => panic!("error while persisting initial state: {:?}", e),
+        _ => {}
+    }
+
     println!("fsa output to file!");
-
     Some(fsa)
 }
 

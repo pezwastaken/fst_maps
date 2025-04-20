@@ -3,6 +3,7 @@
 
 mod automaton;
 mod automaton_decoder;
+mod error;
 mod fsa;
 mod fsa_builder;
 mod fst;
@@ -39,14 +40,14 @@ mod get_from_fst {
 
         ensure_all_pairs(&mut map, "maps/5.txt");
     }
-    //
-    //#[test]
-    //fn ensure_300() {
-    //    let Ok(fst) = build_transducer_from_collection("maps/300.txt", "indices/temp_300.fst");
-    //    let mut map = Map::new("indices/temp_300.fst");
-    //
-    //    ensure_all_pairs(&mut map, "maps/300.txt");
-    //}
+
+    #[test]
+    fn ensure_300() {
+        let Ok(fst) = build_transducer_from_collection("maps/300.txt", "indices/temp_300.fst");
+        let mut map = Map::new("indices/temp_300.fst");
+
+        ensure_all_pairs(&mut map, "maps/300.txt");
+    }
 
     #[test]
     fn ensure_1000_2() {
@@ -155,7 +156,7 @@ mod get_from_fsa {
 
         let mut set = Set::new("sets/5.fsa");
         //
-        ensure_all_values(&set, "sets_data/5.txt");
+        ensure_all_values(&mut set, "sets_data/5.txt");
         //
         assert!(!set.contains(b"can"));
         assert!(!set.contains(b"canee"));
@@ -169,7 +170,7 @@ mod get_from_fsa {
 
         let mut set = Set::new("sets/100.fsa");
         //
-        ensure_all_values(&set, "sets_data/100.txt");
+        ensure_all_values(&mut set, "sets_data/100.txt");
         //
         assert!(!set.contains(b"can"));
         assert!(!set.contains(b"canee"));
@@ -182,7 +183,7 @@ mod get_from_fsa {
         assert!(build_fsa("sets_data/300.txt", "sets/300.fsa").is_some());
 
         let mut set = Set::new("sets/300.fsa");
-        ensure_all_values(&set, "sets_data/300.txt");
+        ensure_all_values(&mut set, "sets_data/300.txt");
     }
 
     #[test]
@@ -190,7 +191,7 @@ mod get_from_fsa {
         assert!(build_fsa("sets_data/1000.txt", "sets/1000.fsa").is_some());
 
         let mut set = Set::new("sets/1000.fsa");
-        ensure_all_values(&set, "sets_data/1000.txt");
+        ensure_all_values(&mut set, "sets_data/1000.txt");
     }
 
     #[test]
@@ -198,7 +199,7 @@ mod get_from_fsa {
         assert!(build_fsa("sets_data/1000_2.txt", "sets/1000_2.fsa").is_some());
 
         let mut set = Set::new("sets/1000_2.fsa");
-        ensure_all_values(&set, "sets_data/1000_2.txt");
+        ensure_all_values(&mut set, "sets_data/1000_2.txt");
     }
 
     #[test]
@@ -206,7 +207,7 @@ mod get_from_fsa {
         assert!(build_fsa("sets_data/3000_rand.txt", "sets/3000_rand.fsa").is_some());
 
         let mut set = Set::new("sets/3000_rand.fsa");
-        ensure_all_values(&set, "sets_data/3000_rand.txt");
+        ensure_all_values(&mut set, "sets_data/3000_rand.txt");
     }
 
     #[test]
@@ -214,10 +215,10 @@ mod get_from_fsa {
         assert!(build_fsa("sets_data/tons.txt", "sets/tons.fsa").is_some());
 
         let mut set = Set::new("sets/tons.fsa");
-        ensure_all_values(&set, "sets_data/tons.txt");
+        ensure_all_values(&mut set, "sets_data/tons.txt");
     }
 
-    fn ensure_all_values(fsa: &Set, filename: &str) {
+    fn ensure_all_values(fsa: &mut Set, filename: &str) {
         if let Ok(lines) = read_lines(filename) {
             for line in lines.map_while(Result::ok) {
                 //convert lines to bytes

@@ -1,6 +1,6 @@
 use std::fs::File;
 
-use std::io::{self, BufWriter};
+use std::io::{self, BufWriter, Write};
 
 use bincode::Encode;
 use bincode::error::EncodeError;
@@ -61,5 +61,9 @@ impl<'a> RawWriter<'a> {
 
         self.written_bytes += wrote;
         Ok(())
+    }
+
+    pub fn flush(&mut self) -> io::Result<()> {
+        self.inner_writer.flush()
     }
 }

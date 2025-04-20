@@ -267,7 +267,10 @@ impl<'a> Transducer<'a> {
         let total_written_bytes = self.writer.get_written_bytes();
 
         match self.writer.write_fixed_int(wrote) {
-            Ok(_) => Ok(total_written_bytes),
+            Ok(_) => {
+                self.writer.flush().unwrap();
+                Ok(total_written_bytes)
+            }
             Err(e) => panic!("error while writing fixed int: {e:?}"),
         }
 

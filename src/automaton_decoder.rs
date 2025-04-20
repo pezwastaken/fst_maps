@@ -5,6 +5,7 @@ use std::fs::File;
 pub struct AutomatonDecoder {
     mmap: Option<Mmap>,
     file: File,
+    prev_addr: usize,
 }
 
 impl AutomatonDecoder {
@@ -16,6 +17,7 @@ impl AutomatonDecoder {
         Ok(Self {
             mmap: Some(map),
             file: f,
+            prev_addr: 0,
         })
     }
 
@@ -46,10 +48,12 @@ impl AutomatonDecoder {
             let decoded;
             if !is_fixed_int {
                 let config = bincode::config::standard();
-                decoded = bincode::decode_from_slice::<usize, _>(&bytes[offset..], config);
+                decoded =
+                    bincode::decode_from_slice::<usize, _>(&bytes[offset..offset + 8], config);
             } else {
                 let config = bincode::config::standard().with_fixed_int_encoding();
-                decoded = bincode::decode_from_slice::<usize, _>(&bytes[offset..], config);
+                decoded =
+                    bincode::decode_from_slice::<usize, _>(&bytes[offset..offset + 8], config);
             }
 
             //simply return the integer while discarding the number of read bytes
@@ -78,21 +82,25 @@ impl AutomatonDecoder {
         }
     }
 
-    pub fn read_first_state<T>(&self) -> Option<T>
+    pub fn read_first_state<T>(&mut self) -> Option<T>
     where
         T: Decode<()>,
     {
         const FIXED_U64_LEN: usize = 8;
 
         let file_len = self.file_len()?;
+        //println!("file len is: {}", file_len);
         let offset = file_len as usize - FIXED_U64_LEN;
 
-        self.read_state_at_addr::<T>(offset, true)
+        let res = self.read_state_at_addr::<T>(offset, true);
+        self.prev_addr = offset;
+
+        res
     }
 
     ///decodes an fst state given its address by first deserializing its length (fixed 8 bytes
     ///starting from addr)
-    pub fn read_state_at_addr<T>(&self, addr: usize, is_initial_state: bool) -> Option<T>
+    pub fn read_state_at_addr<T>(&mut self, addr: usize, is_initial_state: bool) -> Option<T>
     where
         T: Decode<()>,
     {
@@ -125,6 +133,8 @@ impl AutomatonDecoder {
             );
             return None;
         };
+
+        self.prev_addr = offset;
 
         return Some(state);
     }

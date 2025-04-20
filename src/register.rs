@@ -80,11 +80,9 @@ where
         }
     }
 
-    //TODO get raddress of mod
+    //TODO get rid of mod
     #[inline]
     pub fn add_state(&mut self, state: T) {
-        //println!("adding state to register");
-        //dbg!(&state);
         let state_hash = (self.hash(&state) % REGISTER_CAPACITY) as usize;
         let bucket = &mut self.buckets[state_hash];
         bucket.insert(state);

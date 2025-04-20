@@ -1,7 +1,10 @@
+use std::error::Error;
+
 use bincode::{Decode, Encode, error::EncodeError};
 
 use crate::{
     automaton::{AutomatonState, WithAddress},
+    error::MyResult,
     fst_state::TransitionOutput,
     raw_fsa_state::InnerFsaState,
     raw_writer::RawWriter,
@@ -252,7 +255,7 @@ impl<'a> Acceptor<'a> {
         }
     }
 
-    pub fn persist_initial_state(&mut self) -> Result<usize, EncodeError> {
+    pub fn persist_initial_state(&mut self) -> MyResult<usize> {
         let state = &self.states[0];
 
         let wrote = self.writer.write_state::<InnerFsaState>(&state.inner)?;
@@ -260,14 +263,16 @@ impl<'a> Acceptor<'a> {
         //this is the address that is to be returned
         let total_written_bytes = self.writer.get_written_bytes();
 
-        match self.writer.write_fixed_int(wrote) {
-            Ok(_) => Ok(total_written_bytes),
-            Err(e) => panic!("error while writing fixed int: {e:?}"),
-        }
+        //match self.writer.write_fixed_int(wrote) {
+        //    Ok(_) => {
+        //        self.writer.flush()?;
+        //        Ok(total_written_bytes)
+        //    }
+        //    Err(e) => panic!("error while writing fixed int: {e:?}"),
+        //}
 
-        ////write initial state
-        //self.persist_state(0)
-        //    .expect("couldn't persist initial state to file");
+        self.writer.write_fixed_int(wrote)?;
+        Ok(total_written_bytes)
     }
 
     pub fn state_has_children(&self, state_index: usize) -> bool {

@@ -10,7 +10,6 @@ use std::io::BufRead;
 use std::io::Write;
 
 //TODO empty files are not handled !?
-//TODO parameterize the output file
 //
 ///Calling this function results in a fst being built and persisted to file
 pub fn build_transducer_from_collection<'a>(
@@ -33,6 +32,8 @@ pub fn build_transducer_from_collection<'a>(
         for line in lines.map_while(Result::ok) {
             //convert lines to bytes
             let bytes: &[u8] = &line.as_bytes();
+
+            assert_ne!(bytes.len(), 0);
 
             let (key, value): (&[u8], &[u8]) =
                 parse_line(bytes).expect("No lines should be empty!");
