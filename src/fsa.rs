@@ -4,8 +4,9 @@ use crate::{
     automaton::AutomatonState, fst_state::TransitionOutput, raw_writer::RawWriter,
     register::Register,
 };
-//use crate::register::{REGISTER_CAPACITY, REGISTER_COUNT_MASK};
 
+///Represents a single state of a FSA (Finite State Automaton)
+///TODO id should be address and the rest of the fields should be moved to 'InnerState'
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct FsaState {
     id: usize,
@@ -22,17 +23,14 @@ impl FsaState {
         }
     }
 
+    ///Makes the last transition of current state point to other_state
     #[inline]
     pub fn merge_with(&mut self, other_state: usize) -> bool {
-        if let Some(transition) = self.transitions.last_mut() {
-            //field 1 is next state
-            transition.1 = other_state;
-            return true;
-        }
-
-        return false;
+        self.set_last_transition_child(other_state)
     }
 
+    ///All transitions must be equal for this to return true.
+    ///This means that each character must be associated with the same state
     fn are_transitions_equal(&self, other_state: &FsaState) -> bool {
         let self_transitions = &self.transitions;
         let other_state_transitions = &other_state.transitions;
@@ -48,12 +46,18 @@ impl FsaState {
         return all_transitions_equal;
     }
 
-    pub fn set_last_transition_child(&mut self, to_state: usize) {
+    ///TODO should be used by merge_with
+    pub fn set_last_transition_child(&mut self, to_state: usize) -> bool {
         assert!(!self.transitions.is_empty());
-        self.transitions.last_mut().unwrap().1 = to_state;
+        if let Some(transition) = self.transitions.last_mut() {
+            transition.1 = to_state;
+            return true;
+        }
+        false
     }
 }
 
+///Implement AutomatonState trait for FsaState
 impl AutomatonState for FsaState {
     #[inline]
     fn delta(&self, c: u8) -> Option<usize> {
@@ -68,9 +72,10 @@ impl AutomatonState for FsaState {
         return transition.map(|(_, next_state)| *next_state);
     }
 
-    ///should not be used
+    ///must not be used
+    ///fsa doesn't have any output associated with its transitions
     fn delta_with_output(&self, _: u8) -> Option<(usize, &TransitionOutput)> {
-        unimplemented!()
+        unreachable!()
     }
 
     fn has_children(&self) -> bool {
@@ -111,7 +116,7 @@ impl AutomatonState for FsaState {
     }
 }
 
-//are both states in the same equivalence class
+///are both states in the same equivalence class
 impl PartialEq for FsaState {
     fn eq(&self, other_state: &Self) -> bool {
         if self.is_final != other_state.is_final {
@@ -145,6 +150,8 @@ pub struct Acceptor<'a> {
 }
 
 impl<'a> Acceptor<'a> {
+    ///Return a new DFA that is serialized to file 'output_to'
+    ///alphabet_dim is just used as a hint to amortize later adding of transitions
     pub fn new(alphabet_dim: usize, output_to: &'a str) -> Self {
         let mut tmp = Vec::with_capacity(alphabet_dim);
 
@@ -167,14 +174,7 @@ impl<'a> Acceptor<'a> {
         }
     }
 
-    pub fn is_final_state(&self, state: usize) -> bool {
-        self.states
-            .get(state)
-            .expect("no state with index: {state}")
-            .is_final
-    }
-
-    //get the index of the last prefix character inside y
+    ///get the index of the last prefix character inside y
     pub fn common_prefix(&self, y: &[u8]) -> usize {
         //TODO SIMD it using chunk_exact
         let prefix_len = self
@@ -188,9 +188,9 @@ impl<'a> Acceptor<'a> {
         return prefix_len;
     }
 
-    //start keeping track of suffix y in the fsa
-    //new states will originate from `last_state`
-    //a suffix = "" will do nothing
+    ///start keeping track of suffix y in the fsa
+    ///new states will originate from `last_state`
+    ///a suffix = "" will do nothing
     pub fn add_suffix_to_fsa(&mut self, from_state: usize, y: &[u8]) {
         assert!(y.len() <= 100);
 
@@ -249,7 +249,12 @@ impl<'a> Acceptor<'a> {
             match self.add_to_register(child_index) {
                 Ok(written_bytes) => {
                     let current_state = &mut self.states[state_index];
-                    current_state.set_last_transition_child(written_bytes);
+
+                    let ok = current_state.set_last_transition_child(written_bytes);
+
+                    if !ok {
+                        unreachable!();
+                    }
                 }
 
                 Err(e) => panic!("error during add to register: {e:?}"),

@@ -62,8 +62,3 @@ fn read_lines(filename: &str) -> io::Result<io::Lines<io::BufReader<File>>> {
 
     Ok(io::BufReader::new(file).lines())
 }
-
-#[test]
-fn test_1() {
-    assert!(build_fsa("sets_data/5.txt", "sets/5.fsa").is_some());
-}

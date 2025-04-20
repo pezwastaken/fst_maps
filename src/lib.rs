@@ -128,14 +128,30 @@ mod get_from_fsa {
         io::{self, BufRead},
     };
 
-    use crate::set::Set;
+    use crate::{fsa_builder::build_fsa, set::Set};
 
     #[test]
     fn ensure_5() {
+        assert!(build_fsa("sets_data/5.txt", "sets/5.fsa").is_some());
+
         let mut set = Set::new("sets/5.fsa");
-
+        //
         ensure_all_values(&set, "sets_data/5.txt");
+        //
+        assert!(!set.contains(b"can"));
+        assert!(!set.contains(b"canee"));
+        assert!(!set.contains(b"caa"));
+        assert!(!set.contains(b"cozz"));
+    }
 
+    #[test]
+    fn ensure_100() {
+        assert!(build_fsa("sets_data/100.txt", "sets/100.fsa").is_some());
+
+        let mut set = Set::new("sets/100.fsa");
+        //
+        ensure_all_values(&set, "sets_data/100.txt");
+        //
         assert!(!set.contains(b"can"));
         assert!(!set.contains(b"canee"));
         assert!(!set.contains(b"caa"));
