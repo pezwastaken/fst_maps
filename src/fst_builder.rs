@@ -123,7 +123,7 @@ pub fn dump_graph(fst: &Transducer<'_>, file_path: &str) -> io::Result<()> {
     //mark the accepting states
     for state in fst.states.iter() {
         if state.is_final {
-            let s = format!("    {} [shape=doublecircle, color=green];", state.id);
+            let s = format!("    {} [shape=doublecircle, color=green];", state.address);
             file.write(s.as_bytes())?;
         }
     }
@@ -147,7 +147,10 @@ pub fn dump_graph(fst: &Transducer<'_>, file_path: &str) -> io::Result<()> {
             } else {
                 label = format!("{}", *on_char as char);
             }
-            let s = format!("    {} -> {} [label=\"{}\"];", state.id, *to_state, label);
+            let s = format!(
+                "    {} -> {} [label=\"{}\"];",
+                state.address, *to_state, label
+            );
             file.write(s.as_bytes())?;
         }
     }

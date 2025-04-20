@@ -49,7 +49,7 @@ impl<'a> Transducer<'a> {
     pub fn push_zinit_state(&mut self) {
         self.temp_states.push(FstState {
             //TODO this is just a placeholder for the initial state
-            id: 99999,
+            address: 99999,
             is_final: false,
             transitions: Vec::new(),
             outputs: Vec::new(),
@@ -146,18 +146,18 @@ impl<'a> Transducer<'a> {
 
         for (i, byte) in y.iter().enumerate() {
             //get the current state and add a new transition to it
-            let new_state_id = self.temp_states.len();
+            let new_state_address = self.temp_states.len();
 
-            //0 means that the id to which this transition is pointing will be set later
+            //0 means that the address to which this transition is pointing will be set later
             self.temp_states[current_state].add_transition(*byte, 1);
-            //self.temp_states[current_state].add_transition(*byte, new_state_id);
+            //self.temp_states[current_state].add_transition(*byte, new_state_address);
 
             //if last loop iteration the state is to be marked as final
             let is_state_final = i == string_len - 1;
 
             let new_state: FstState = FstState {
-                //id: self.states.len(),
-                id: 1,
+                //address: self.states.len(),
+                address: 1,
                 is_final: is_state_final,
                 transitions: Vec::new(),
                 outputs: Vec::new(),
@@ -168,7 +168,7 @@ impl<'a> Transducer<'a> {
 
             assert!(self.temp_states.len() > 1);
 
-            current_state = new_state_id;
+            current_state = new_state_address;
         }
 
         assert!(initial_number_of_states <= self.temp_states.len());
@@ -176,7 +176,7 @@ impl<'a> Transducer<'a> {
 
     //assume state has children
     pub fn replace_or_register(&mut self, i: usize) {
-        //get the state `id` of the last outgoing transition from current state
+        //get the state `address` of the last outgoing transition from current state
 
         if self.temp_states[i + 1].has_children() {
             self.replace_or_register(i + 1);
@@ -216,15 +216,15 @@ impl<'a> Transducer<'a> {
     fn add_to_register(&mut self, i: usize) -> Result<usize, EncodeError> {
         //assert_eq!(i, self.temp_states.len() - 1);
         //REMOVE
-        //this will be the state new id
+        //this will be the state new address
         //let written_bytes = self.writer.get_written_bytes();
         //println!("added state {written_bytes} to register");
-        //state.id = written_bytes;
+        //state.address = written_bytes;
 
         let address = self.persist_state(i)?;
 
         let state = &mut self.temp_states[i];
-        state.id = address;
+        state.address = address;
 
         //this is just temporary
         self.states.push(state.clone());
@@ -449,7 +449,7 @@ impl<'a> Transducer<'a> {
         self.last_key[..word_len].copy_from_slice(&new_key[..]);
     }
 
-    ///Returns the last index of a final state inside the temp_states vec (if any)
+    ///Returns the last index of a final state insaddresse the temp_states vec (if any)
     ///Returns None in case no state is marked as final
     pub fn temp_contains_final(&self, up_to: usize) -> Option<usize> {
         self.temp_states[..=up_to]
@@ -516,7 +516,7 @@ impl<'a> Automaton for Transducer<'a> {
     //        output = tmp;
     //        return Some(output);
     //    }
-    //    //else return None => input_tape wasn't a valid key
+    //    //else return None => input_tape wasn't a valaddress key
     //    else {
     //        return None;
     //    }

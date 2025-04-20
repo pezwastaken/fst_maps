@@ -1,59 +1,50 @@
 use bincode::{Decode, Encode, error::EncodeError};
 
 use crate::{
-    automaton::AutomatonState, fst_state::TransitionOutput, raw_writer::RawWriter,
+    automaton::{AutomatonState, WithAddress},
+    fst_state::TransitionOutput,
+    raw_fsa_state::InnerFsaState,
+    raw_writer::RawWriter,
     register::Register,
 };
 
 ///Represents a single state of a FSA (Finite State Automaton)
-///TODO id should be address and the rest of the fields should be moved to 'InnerState'
+///TODO address should be address and the rest of the fields should be moved to 'InnerState'
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct FsaState {
-    id: usize,
-    pub is_final: bool,
-    pub transitions: Vec<(u8, usize)>,
+    address: usize,
+    inner: InnerFsaState,
 }
 
 impl FsaState {
     pub fn new() -> Self {
         FsaState {
-            id: 0,
-            is_final: false,
-            transitions: Vec::new(),
+            address: 0,
+            inner: InnerFsaState::new(false),
         }
     }
 
     ///Makes the last transition of current state point to other_state
     #[inline]
     pub fn merge_with(&mut self, other_state: usize) -> bool {
-        self.set_last_transition_child(other_state)
+        self.inner.merge_with(other_state)
     }
 
     ///All transitions must be equal for this to return true.
     ///This means that each character must be associated with the same state
     fn are_transitions_equal(&self, other_state: &FsaState) -> bool {
-        let self_transitions = &self.transitions;
-        let other_state_transitions = &other_state.transitions;
-
-        //actually check transitions
-        //compare char of transition 1 with char of transition 2
-        //same thing with destination states
-        let all_transitions_equal = self_transitions
-            .iter()
-            .zip(other_state_transitions)
-            .all(|((char1, state1), (char2, state2))| (*char1 == *char2) && (*state1 == *state2));
-
-        return all_transitions_equal;
+        self.inner.are_transitions_equal(&other_state.inner)
     }
 
     ///TODO should be used by merge_with
     pub fn set_last_transition_child(&mut self, to_state: usize) -> bool {
-        assert!(!self.transitions.is_empty());
-        if let Some(transition) = self.transitions.last_mut() {
-            transition.1 = to_state;
-            return true;
-        }
-        false
+        self.inner.set_last_transition_child(to_state)
+    }
+}
+
+impl WithAddress for FsaState {
+    fn get_address(&self) -> usize {
+        self.address
     }
 }
 
@@ -61,54 +52,37 @@ impl FsaState {
 impl AutomatonState for FsaState {
     #[inline]
     fn delta(&self, c: u8) -> Option<usize> {
-        //self.transitions.iter().position(|x| x.0 == c);
-
-        let transition = self
-            .transitions
-            .iter()
-            .find(|(transition_char, _)| *transition_char == c);
-
-        //return Some(transition?.1);
-        return transition.map(|(_, next_state)| *next_state);
+        self.inner.delta(c)
     }
 
     ///must not be used
     ///fsa doesn't have any output associated with its transitions
-    fn delta_with_output(&self, _: u8) -> Option<(usize, &TransitionOutput)> {
-        unreachable!()
+    fn delta_with_output(&self, c: u8) -> Option<(usize, &TransitionOutput)> {
+        self.inner.delta_with_output(c)
     }
 
     fn has_children(&self) -> bool {
-        !(self.transitions.is_empty())
+        self.inner.has_children()
     }
 
     fn last_child(&self) -> Option<usize> {
-        match self.transitions.last() {
-            Some((_, child_state)) => Some(*child_state),
-            None => None,
-        }
+        self.inner.last_child()
     }
 
-    fn add_transition(&mut self, y: u8, new_state_id: usize) {
-        self.transitions.push((y, new_state_id));
-        assert!(self.transitions.len() > 0);
+    fn add_transition(&mut self, y: u8, new_state_address: usize) {
+        self.inner.add_transition(y, new_state_address);
     }
 
     fn clear_state(&mut self) {
-        self.is_final = false;
-        self.transitions.clear();
-    }
-
-    fn get_id(&self) -> usize {
-        self.id
+        self.inner.clear_state();
     }
 
     fn is_final(&self) -> bool {
-        self.is_final
+        self.inner.is_final()
     }
 
     fn get_transitions(&self) -> &[(u8, usize)] {
-        &self.transitions
+        self.inner.get_transitions()
     }
 
     fn get_outputs(&self) -> Option<&[TransitionOutput]> {
@@ -119,23 +93,9 @@ impl AutomatonState for FsaState {
 ///are both states in the same equivalence class
 impl PartialEq for FsaState {
     fn eq(&self, other_state: &Self) -> bool {
-        if self.is_final != other_state.is_final {
-            return false;
-        }
-
-        match self.transitions.len() != other_state.transitions.len() {
-            true => return false,
-            false => (),
-        }
-
-        let transitions_equal = self.are_transitions_equal(other_state);
-
-        let res = transitions_equal;
-
-        return res;
+        self.inner.eq(&other_state.inner)
     }
 }
-
 impl Eq for FsaState {}
 
 type States = Vec<FsaState>;
@@ -155,11 +115,7 @@ impl<'a> Acceptor<'a> {
     pub fn new(alphabet_dim: usize, output_to: &'a str) -> Self {
         let mut tmp = Vec::with_capacity(alphabet_dim);
 
-        tmp.push(FsaState {
-            id: 0,
-            is_final: false,
-            transitions: Vec::new(),
-        });
+        tmp.push(FsaState::new());
 
         if let Ok(wr) = RawWriter::new(output_to) {
             Acceptor {
@@ -174,7 +130,7 @@ impl<'a> Acceptor<'a> {
         }
     }
 
-    ///get the index of the last prefix character inside y
+    ///get the index of the last prefix character insaddresse y
     pub fn common_prefix(&self, y: &[u8]) -> usize {
         //TODO SIMD it using chunk_exact
         let prefix_len = self
@@ -202,23 +158,22 @@ impl<'a> Acceptor<'a> {
 
         for (i, byte) in y.iter().enumerate() {
             //get the current state and add a new transition to it
-            let new_state_id = self.states.len();
+            let new_state_address = self.states.len();
 
-            self.states[current_state].add_transition(*byte, new_state_id);
+            self.states[current_state].add_transition(*byte, new_state_address);
 
             //if last loop iteration the state is to be marked as final
             let is_state_final = i == string_len - 1;
 
             let new_state: FsaState = FsaState {
-                id: self.states.len(),
-                is_final: is_state_final,
-                transitions: Vec::new(),
+                address: self.states.len(),
+                inner: InnerFsaState::new(is_state_final),
             };
 
-            assert!(new_state.transitions.is_empty());
+            assert!(new_state.inner.transitions.is_empty());
             self.states.push(new_state);
 
-            current_state = new_state_id;
+            current_state = new_state_address;
         }
 
         assert!(initial_number_of_states <= self.states.len());
@@ -229,7 +184,7 @@ impl<'a> Acceptor<'a> {
         let state = &self.states[state_index];
         assert!(state.has_children());
 
-        //get the state `id` of the last outgoing transition from current state
+        //get the state `address` of the last outgoing transition from current state
         let child_index = state.last_child().unwrap();
 
         if self.state_has_children(child_index) {
@@ -273,8 +228,8 @@ impl<'a> Acceptor<'a> {
         let address = self.persist_state(i)?;
 
         let mut state = self.states.pop().unwrap();
-        state.transitions.shrink_to_fit();
-        state.id = address;
+        state.inner.transitions.shrink_to_fit();
+        state.address = address;
 
         self.register.add_state(state);
 
@@ -286,7 +241,7 @@ impl<'a> Acceptor<'a> {
     pub fn persist_state(&mut self, i: usize) -> Result<usize, EncodeError> {
         let state = &self.states[i];
 
-        let wrote = self.writer.write_state::<FsaState>(state)?;
+        let wrote = self.writer.write_state::<InnerFsaState>(&state.inner)?;
 
         //this is the address that is to be returned
         let total_written_bytes = self.writer.get_written_bytes();

@@ -1,4 +1,4 @@
-use crate::automaton::AutomatonState;
+use crate::automaton::{AutomatonState, WithAddress};
 use bincode::{Decode, Encode};
 
 #[derive(Debug, PartialEq, Clone, Encode, Decode)]
@@ -59,8 +59,8 @@ impl TransitionOutput {
 
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct FstState {
-    //id: usize,
-    pub id: usize,
+    //address: usize,
+    pub address: usize,
 
     //these two fields are "linked" together to model a transition of the transducer.
     //outputs[i] is the output associated to transition `i` of current state
@@ -73,7 +73,7 @@ pub struct FstState {
 impl FstState {
     pub fn new() -> Self {
         FstState {
-            id: 0,
+            address: 0,
             is_final: false,
             transitions: Vec::new(),
             outputs: Vec::new(),
@@ -294,8 +294,8 @@ impl AutomatonState for FstState {
     }
 
     #[inline]
-    fn add_transition(&mut self, y: u8, new_state_id: usize) {
-        self.transitions.push((y, new_state_id));
+    fn add_transition(&mut self, y: u8, new_state_address: usize) {
+        self.transitions.push((y, new_state_address));
         assert!(self.transitions.len() > 0);
 
         //create new empty output
@@ -310,9 +310,9 @@ impl AutomatonState for FstState {
         self.outputs.clear();
     }
 
-    fn get_id(&self) -> usize {
-        self.id
-    }
+    //fn get_address(&self) -> usize {
+    //    self.address
+    //}
 
     fn is_final(&self) -> bool {
         self.is_final
@@ -324,6 +324,12 @@ impl AutomatonState for FstState {
 
     fn get_outputs(&self) -> Option<&[TransitionOutput]> {
         Some(&self.outputs)
+    }
+}
+
+impl WithAddress for FstState {
+    fn get_address(&self) -> usize {
+        self.address
     }
 }
 
@@ -358,7 +364,7 @@ impl PartialEq for FstState {
 
 impl Eq for FstState {}
 
-//get the index of the last prefix character inside y
+//get the index of the last prefix character insaddresse y
 pub(crate) fn common_prefix_index(previous_str: &[u8], y: &[u8]) -> usize {
     //TODO SIMD it using chunk_exact
     let prefix_len = previous_str

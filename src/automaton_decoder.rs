@@ -2,7 +2,7 @@ use bincode::{Decode, error::DecodeError};
 use memmap2::{Mmap, MmapOptions};
 use std::fs::File;
 
-use crate::automaton::AutomatonState;
+use crate::automaton::WithAddress;
 
 pub struct AutomatonDecoder {
     mmap: Option<Mmap>,
@@ -23,7 +23,7 @@ impl AutomatonDecoder {
 
     fn try_decode_state<T>(&self, offset: usize, len: usize) -> Result<T, DecodeError>
     where
-        T: AutomatonState + Decode<()>,
+        T: Decode<()>,
     {
         if let Some(bytes) = self.mmap.as_ref() {
             let upper_bound = offset + len;
@@ -77,7 +77,7 @@ impl AutomatonDecoder {
 
     pub fn read_first_state<T>(&self) -> Option<T>
     where
-        T: AutomatonState + Decode<()>,
+        T: Decode<()>,
     {
         const FIXED_U64_LEN: usize = 8;
 
@@ -91,7 +91,7 @@ impl AutomatonDecoder {
     ///starting from addr)
     pub fn read_state_at_addr<T>(&self, addr: usize) -> Option<T>
     where
-        T: AutomatonState + Decode<()>,
+        T: Decode<()>,
     {
         const FIXED_U64_LEN: u64 = 8;
 

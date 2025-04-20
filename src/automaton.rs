@@ -14,12 +14,15 @@ pub trait AutomatonState {
     fn has_children(&self) -> bool;
     fn last_child(&self) -> Option<usize>;
 
-    fn add_transition(&mut self, y: u8, new_state_id: usize);
+    fn add_transition(&mut self, y: u8, new_state_address: usize);
 
     fn clear_state(&mut self);
 
-    fn get_id(&self) -> usize;
     fn is_final(&self) -> bool;
     fn get_transitions(&self) -> &[(u8, usize)];
     fn get_outputs(&self) -> Option<&[TransitionOutput]>;
+}
+
+pub trait WithAddress {
+    fn get_address(&self) -> usize;
 }

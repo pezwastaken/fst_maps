@@ -1,4 +1,4 @@
-use crate::automaton::AutomatonState;
+use crate::automaton::{AutomatonState, WithAddress};
 
 //must always be a power of 2
 pub const REGISTER_CAPACITY: u64 = 256;
@@ -17,7 +17,7 @@ pub struct Bucket<T> {
 ///It will be implemented by the transducer itself.
 impl<T> Bucket<T>
 where
-    T: AutomatonState + PartialEq,
+    T: AutomatonState + WithAddress + PartialEq,
 {
     fn new() -> Self {
         let tmp: [Option<T>; BUCKET_SIZE] = array_init::array_init(|_| None);
@@ -51,7 +51,7 @@ where
             .find(|elem| {
                 return state.eq(*elem);
             })
-            .map(|state| state.get_id())
+            .map(|state| state.get_address())
     }
 }
 
@@ -64,7 +64,7 @@ pub struct Register<T> {
 
 impl<T> Register<T>
 where
-    T: AutomatonState + PartialEq,
+    T: AutomatonState + WithAddress + PartialEq,
 {
     pub fn new() -> Self {
         //const EMPTY_BUCKET: Bucket = Bucket {
@@ -80,7 +80,7 @@ where
         }
     }
 
-    //TODO get rid of mod
+    //TODO get raddress of mod
     #[inline]
     pub fn add_state(&mut self, state: T) {
         //println!("adding state to register");
@@ -99,8 +99,8 @@ where
     //
     #[inline]
     pub fn get_equivalent(&self, state: &T) -> Option<usize> {
-        let bucket_id = self.hash(state) % REGISTER_CAPACITY;
-        let bucket = &self.buckets[bucket_id as usize];
+        let bucket_address = self.hash(state) % REGISTER_CAPACITY;
+        let bucket = &self.buckets[bucket_address as usize];
         bucket.contains_equivalent(state)
     }
 
