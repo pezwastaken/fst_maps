@@ -79,7 +79,7 @@ pub fn build_transducer_from_collection<'a>(
     transducer
         .persist_initial_state()
         .expect("couldn't serialize initial state");
-    println!("fst output to file!");
+    //println!("fst output to file!");
 
     return Ok(transducer);
 }

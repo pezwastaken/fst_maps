@@ -1,5 +1,3 @@
-use std::error::Error;
-
 use bincode::{Decode, Encode, error::EncodeError};
 
 use crate::{
@@ -226,11 +224,20 @@ impl<'a> Acceptor<'a> {
         self.register.get_equivalent(state)
     }
 
+    //TODO
+    //address should simply be total_written_bytes and must be set before writing
+    //the current state to file.
+    //
+    //
     fn add_to_register(&mut self, i: usize) -> Result<usize, EncodeError> {
         assert_eq!(i, self.states.len() - 1);
-        let address = self.persist_state(i)?;
+        //let address = self.persist_state(i)?;
+        let address = self.writer.get_written_bytes();
+
+        self.persist_state(i)?;
 
         let mut state = self.states.pop().unwrap();
+
         state.inner.transitions.shrink_to_fit();
         state.address = address;
 
@@ -241,38 +248,44 @@ impl<'a> Acceptor<'a> {
 
     ///Writes the given FsaState and then its length (in bytes).
     ///Returns the address to the start of the state len.
-    pub fn persist_state(&mut self, i: usize) -> Result<usize, EncodeError> {
+    pub fn persist_state(&mut self, i: usize) -> Result<(), EncodeError> {
         let state = &self.states[i];
 
-        let wrote = self.writer.write_state::<InnerFsaState>(&state.inner)?;
+        //TODO remove this
+        //It was needed to write the len of each state
+        //let wrote = self.writer.write_state::<InnerFsaState>(&state.inner)?;
+        let _ = self.writer.write_state::<InnerFsaState>(&state.inner)?;
 
         //this is the address that is to be returned
-        let total_written_bytes = self.writer.get_written_bytes();
-
-        match self.writer.write_int(wrote) {
-            Ok(_) => Ok(total_written_bytes),
-            Err(e) => panic!("error while writing fixed int: {e:?}"),
-        }
-    }
-
-    pub fn persist_initial_state(&mut self) -> MyResult<usize> {
-        let state = &self.states[0];
-
-        let wrote = self.writer.write_state::<InnerFsaState>(&state.inner)?;
-
-        //this is the address that is to be returned
-        let total_written_bytes = self.writer.get_written_bytes();
-
-        //match self.writer.write_fixed_int(wrote) {
-        //    Ok(_) => {
-        //        self.writer.flush()?;
-        //        Ok(total_written_bytes)
-        //    }
+        //let total_written_bytes = self.writer.get_written_bytes();
+        Ok(())
+        //Ok(total_written_bytes)
+        //
+        //match self.writer.write_int(wrote) {
+        //    Ok(_) => Ok(total_written_bytes),
         //    Err(e) => panic!("error while writing fixed int: {e:?}"),
         //}
+    }
 
-        self.writer.write_fixed_int(wrote)?;
-        Ok(total_written_bytes)
+    pub fn persist_initial_state(&mut self) -> MyResult<()> {
+        let state = &self.states[0];
+
+        //TODO remove this
+        //It was needed to write the len of each state
+        let wrote = self.writer.write_state::<InnerFsaState>(&state.inner)?;
+
+        //this is the address that is to be returned
+        //let total_written_bytes = self.writer.get_written_bytes();
+
+        match self.writer.write_fixed_int(wrote) {
+            Ok(_) => {
+                self.writer.flush()?;
+                Ok(())
+            }
+            Err(e) => Err(e.into()),
+        }
+
+        //self.writer.write_fixed_int(wrote)?;
     }
 
     pub fn state_has_children(&self, state_index: usize) -> bool {

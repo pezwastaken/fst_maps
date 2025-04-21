@@ -21,22 +21,23 @@ impl AutomatonDecoder {
         })
     }
 
-    fn try_decode_state<T>(&self, offset: usize, len: usize) -> Result<T, DecodeError>
+    fn try_decode_state<T>(&self, offset: usize) -> Result<T, DecodeError>
     where
         T: Decode<()>,
     {
+        assert!(self.prev_addr > offset);
         if let Some(bytes) = self.mmap.as_ref() {
-            let upper_bound = offset + len;
+            assert!(!bytes.is_empty());
 
             let decoded = bincode::decode_from_slice::<T, _>(
-                &bytes[offset..upper_bound],
+                &bytes[offset..self.prev_addr],
                 bincode::config::standard(),
             );
 
             //simply return the object while discarding the number of read bytes
             decoded.map(|(obj, _)| obj)
         } else {
-            panic!("try_decode called on None mmap");
+            panic!("try_decode_state called on None mmap");
         }
     }
 
@@ -89,11 +90,25 @@ impl AutomatonDecoder {
         const FIXED_U64_LEN: usize = 8;
 
         let file_len = self.file_len()?;
+        assert_ne!(file_len, 0);
+
+        //SAFE
+        self.prev_addr = file_len as usize;
         //println!("file len is: {}", file_len);
         let offset = file_len as usize - FIXED_U64_LEN;
 
+        let Ok(state_len) = self.try_decode_int(offset, true) else {
+            return None;
+        };
+
+        assert!(offset > offset - state_len);
+        let offset = offset - state_len;
+
         let res = self.read_state_at_addr::<T>(offset, true);
         self.prev_addr = offset;
+        if offset == 0 {
+            println!("offset is 0 in read state at addr");
+        }
 
         res
     }
@@ -110,79 +125,31 @@ impl AutomatonDecoder {
 
         //len (in bytes) of the initial state
         //conversion is safe
-        let Ok(state_len) = self.try_decode_int(addr, is_initial_state) else {
-            eprintln!(
-                "couldn't decode fixed int starting from offset {} with len {} from file {:?}",
-                addr,
-                FIXED_U64_LEN,
-                self.file.metadata()
-            );
-            return None;
-        };
+        //let Ok(state_len) = self.try_decode_int(addr, is_initial_state) else {
+        //    eprintln!(
+        //        "couldn't decode fixed int starting from offset {} with len {} from file {:?}",
+        //        addr,
+        //        FIXED_U64_LEN,
+        //        self.file.metadata()
+        //    );
+        //    return None;
+        //};
 
-        let offset = addr - state_len;
+        //let offset = addr - state_len;
         //remap file using the new offset and first state len as the buffer length
         //self.mmap_buf(offset, state_len);
 
-        let Ok(state) = self.try_decode_state::<T>(offset, state_len) else {
+        let Ok(state) = self.try_decode_state::<T>(addr) else {
             eprintln!(
-                "couldn't decode state starting from offset {} with len {} from file {:?}",
-                offset,
-                state_len,
+                "couldn't decode state starting from offset {} from file {:?}",
+                addr,
                 self.file.metadata()
             );
             return None;
         };
 
-        self.prev_addr = offset;
+        self.prev_addr = addr;
 
         return Some(state);
     }
-}
-
-#[allow(unused)]
-#[cfg(test)]
-mod fst_decoder_u_tests {
-    use crate::automaton::AutomatonState;
-
-    use super::AutomatonDecoder;
-
-    //#[test]
-    //fn file_len() {
-    //    let decoder = FstDecoder::new("test.fst").expect("couln't open file");
-    //
-    //    assert_eq!(160, decoder.file_len().unwrap());
-    //}
-    //
-    //#[test]
-    //fn read_first_state() {
-    //    let mut decoder = FstDecoder::new("test.fst").expect("couln't open file");
-    //
-    //    assert_eq!(160, decoder.file_len().unwrap());
-    //
-    //    let first_state = decoder.read_first_state();
-    //    assert!(first_state.is_some());
-    //
-    //    //dbg!(first_state.unwrap());
-    //}
-    //
-    //#[test]
-    //fn walk_transition_from_q0() {
-    //    let mut decoder = FstDecoder::new("test.fst").expect("couln't open file");
-    //
-    //    assert_eq!(160, decoder.file_len().unwrap());
-    //
-    //    let first_state = decoder.read_first_state().unwrap();
-    //
-    //    //dbg!(first_state.unwrap());
-    //
-    //    let (next_state_addr, output) = first_state.delta_with_output('c' as u8).unwrap();
-    //    assert_eq!(output.get_value_as_deref().unwrap(), "ciao".as_bytes());
-    //
-    //    let next_state = decoder.read_state_at_addr(next_state_addr as u64);
-    //    assert!(next_state.is_some());
-    //
-    //    let (next_state, output) = first_state.delta_with_output('c' as u8).unwrap();
-    //    assert_eq!(output.get_value_as_deref().unwrap(), "ciao".as_bytes());
-    //}
 }

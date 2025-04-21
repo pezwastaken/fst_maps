@@ -57,7 +57,7 @@ pub fn build_fsa<'a>(filename: &str, output_to: &'a str) -> Option<Acceptor<'a>>
         _ => {}
     }
 
-    println!("fsa output to file!");
+    //println!("fsa output to file!");
     Some(fsa)
 }
 

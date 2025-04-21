@@ -224,7 +224,7 @@ mod get_from_fsa {
                 //convert lines to bytes
                 let key = &line.as_bytes();
 
-                println!("ensuring key: {}", std::str::from_utf8(key).unwrap());
+                //println!("ensuring key: {}", std::str::from_utf8(key).unwrap());
 
                 //get value back from fst
                 let is_in_set = fsa.contains(&key);

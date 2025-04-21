@@ -2,6 +2,7 @@ use bincode::error::EncodeError;
 
 use crate::{
     automaton::{Automaton, AutomatonState},
+    error::MyResult,
     fst_state::{FstState, common_prefix_index},
     raw_writer::RawWriter,
     register::Register,
@@ -214,14 +215,8 @@ impl<'a> Transducer<'a> {
     }
 
     fn add_to_register(&mut self, i: usize) -> Result<usize, EncodeError> {
-        //assert_eq!(i, self.temp_states.len() - 1);
-        //REMOVE
-        //this will be the state new address
-        //let written_bytes = self.writer.get_written_bytes();
-        //println!("added state {written_bytes} to register");
-        //state.address = written_bytes;
-
-        let address = self.persist_state(i)?;
+        //let address = self.persist_state(i)?;
+        let address = self.writer.get_written_bytes();
 
         let state = &mut self.temp_states[i];
         state.address = address;
@@ -237,6 +232,7 @@ impl<'a> Transducer<'a> {
         //Thus, we can write it to file.
         //self.writer.write_state(state)?;
 
+        self.persist_state(i)?;
         self.temp_states.pop();
 
         Ok(address)
@@ -244,34 +240,29 @@ impl<'a> Transducer<'a> {
 
     ///Writes the given FstState and then its length (in bytes).
     ///Returns the address to the start of the state len.
-    pub fn persist_state(&mut self, i: usize) -> Result<usize, EncodeError> {
+    pub fn persist_state(&mut self, i: usize) -> Result<(), EncodeError> {
         let state = &self.temp_states[i];
 
-        let wrote = self.writer.write_state::<FstState>(state)?;
+        let _ = self.writer.write_state::<FstState>(state)?;
 
         //this is the address that is to be returned
-        let total_written_bytes = self.writer.get_written_bytes();
-
-        match self.writer.write_int(wrote) {
-            Ok(_) => Ok(total_written_bytes),
-            Err(e) => panic!("error while writing fixed int: {e:?}"),
-        }
+        Ok(())
     }
 
-    pub fn persist_initial_state(&mut self) -> Result<usize, EncodeError> {
+    pub fn persist_initial_state(&mut self) -> MyResult<()> {
         let state = &self.temp_states[0];
 
         let wrote = self.writer.write_state::<FstState>(&state)?;
 
         //this is the address that is to be returned
-        let total_written_bytes = self.writer.get_written_bytes();
+        //let total_written_bytes = self.writer.get_written_bytes();
 
         match self.writer.write_fixed_int(wrote) {
             Ok(_) => {
-                self.writer.flush().unwrap();
-                Ok(total_written_bytes)
+                self.writer.flush()?;
+                Ok(())
             }
-            Err(e) => panic!("error while writing fixed int: {e:?}"),
+            Err(e) => Err(e.into()),
         }
 
         ////write initial state
