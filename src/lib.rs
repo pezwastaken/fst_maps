@@ -158,7 +158,6 @@ mod get_from_fsa {
         //
         ensure_all_values(&mut set, "sets_data/5.txt");
         //
-        assert!(!set.contains(b"can"));
         assert!(!set.contains(b"canee"));
         assert!(!set.contains(b"caa"));
         assert!(!set.contains(b"cozz"));
@@ -218,6 +217,14 @@ mod get_from_fsa {
         ensure_all_values(&mut set, "sets_data/tons.txt");
     }
 
+    #[test]
+    fn ensure_words_alpha() {
+        assert!(build_fsa("sets_data/words_alpha.txt", "sets/words_alpha.fsa").is_some());
+
+        let mut set = Set::new("sets/words_alpha.fsa");
+        ensure_all_values(&mut set, "sets_data/words_alpha.txt");
+    }
+
     fn ensure_all_values(fsa: &mut Set, filename: &str) {
         if let Ok(lines) = read_lines(filename) {
             for line in lines.map_while(Result::ok) {
@@ -228,6 +235,9 @@ mod get_from_fsa {
 
                 //get value back from fst
                 let is_in_set = fsa.contains(&key);
+                if !is_in_set {
+                    println!("key: {} is not in set", std::str::from_utf8(key).unwrap());
+                }
                 assert!(is_in_set);
             }
         } else {

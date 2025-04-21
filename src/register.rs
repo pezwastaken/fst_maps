@@ -1,26 +1,23 @@
 use crate::automaton::{AutomatonState, WithAddress};
 
 //must always be a power of 2
-pub const REGISTER_CAPACITY: u64 = 256;
+pub const REGISTER_CAPACITY: u64 = 1543;
 pub const REGISTER_COUNT_MASK: u64 = REGISTER_CAPACITY - 1;
 pub const BUCKET_SIZE: usize = 8;
 
 #[derive(Debug)]
 pub struct Bucket<T> {
     //elements: [Option<usize>; BUCKET_SIZE],
-    elements: [Option<T>; BUCKET_SIZE],
+    elements: Box<[Option<T>; BUCKET_SIZE]>,
     count: usize,
 }
 
-///NOTE
-///This doesn't contain any lookup/search method because the actual state object is needed to check for equality.
-///It will be implemented by the transducer itself.
 impl<T> Bucket<T>
 where
     T: AutomatonState + WithAddress + PartialEq,
 {
     fn new() -> Self {
-        let tmp: [Option<T>; BUCKET_SIZE] = array_init::array_init(|_| None);
+        let tmp: Box<[Option<T>; BUCKET_SIZE]> = Box::new(array_init::array_init(|_| None));
 
         Self {
             elements: tmp,
@@ -35,7 +32,7 @@ where
     }
 
     pub fn get_elements(&self) -> &[Option<T>] {
-        &self.elements
+        &*self.elements
     }
 
     fn is_empty(&self) -> bool {
@@ -88,13 +85,6 @@ where
         bucket.insert(state);
     }
 
-    //#[inline]
-    //pub fn get_bucket(&self, state: &FstState) -> Option<&Bucket> {
-    //    let state_hash = self.hash(state) % REGISTER_CAPACITY;
-    //    let res = &self.buckets[state_hash as usize];
-    //    return Some(res);
-    //}
-    //
     #[inline]
     pub fn get_equivalent(&self, state: &T) -> Option<usize> {
         let bucket_address = self.hash(state) % REGISTER_CAPACITY;

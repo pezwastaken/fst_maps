@@ -182,13 +182,8 @@ impl<'a> Acceptor<'a> {
 
     //assume state has children
     pub fn replace_or_register(&mut self, state_index: usize) {
-        let state = &self.states[state_index];
-        assert!(state.has_children());
-
-        //get the state `address` of the last outgoing transition from current state
-        let child_index = state.last_child().unwrap();
-
-        if self.state_has_children(child_index) {
+        let child_index = state_index + 1;
+        if self.states[child_index].has_children() {
             self.replace_or_register(child_index);
         }
 
