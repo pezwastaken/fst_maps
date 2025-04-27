@@ -3,13 +3,19 @@
 
 mod automaton;
 mod automaton_decoder;
+#[path = "levenshtein/bit_vector.rs"]
+mod bit_vector;
 mod error;
 mod fsa;
 mod fsa_builder;
 mod fst;
 mod fst_builder;
 mod fst_state;
+#[path = "levenshtein/levenshtein_nfa.rs"]
+mod levenshtein_nfa;
 mod map;
+#[path = "levenshtein/nula.rs"]
+mod nula;
 #[path = "inner/raw_fsa_state.rs"]
 mod raw_fsa_state;
 mod raw_writer;
