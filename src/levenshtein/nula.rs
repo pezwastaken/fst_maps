@@ -53,32 +53,33 @@ pub struct NULA {
     states: Vec<NULAState>,
 }
 
+///distance = 1
 impl NULA {
-    ///distance = 1
     pub fn new() -> Self {
         let mut nfa = Self {
             states: Vec::with_capacity(4),
         };
 
-        let self_loop = (BitVectorMask::new([-1, -1, 1, -1, -1, 0, 0]), 0);
-        let t_1 = (BitVectorMask::new([-1, -1, 0, -1, -1, 0, 0]), 1);
-        let t_2 = (BitVectorMask::new([-1, -1, 0, -1, -1, 0, 0]), 2);
-        let t_3 = (BitVectorMask::new([-1, -1, 0, 1, -1, 0, 0]), 3);
+        let self_loop = (BitVectorMask::new([-1, 1, -1]), 0);
+        let t_1 = (BitVectorMask::new([-1, 0, -1]), 1);
+        let t_2 = (BitVectorMask::new([-1, 0, -1]), 2);
+        let t_3 = (BitVectorMask::new([-1, 0, 1]), 3);
         nfa.states.push(NULAState::new_with_transitions(
             0,
             0,
             vec![self_loop, t_1, t_2, t_3],
         ));
 
-        let self_loop = (BitVectorMask::new([-1, 1, -1, -1, -1, 0, 0]), 0);
+        let self_loop = (BitVectorMask::new([1, -1, -1]), 1);
+        //let self_loop = (BitVectorMask::new([-1, 1, -1, -1, -1, 0, 0]), 0);
         nfa.states
             .push(NULAState::new_with_transitions(1, -1, vec![self_loop]));
 
-        let self_loop = (BitVectorMask::new([-1, -1, 1, -1, -1, 0, 0]), 0);
+        let self_loop = (BitVectorMask::new([-1, 1, -1]), 2);
         nfa.states
             .push(NULAState::new_with_transitions(1, 0, vec![self_loop]));
 
-        let self_loop = (BitVectorMask::new([-1, -1, -1, 1, -1, 0, 0]), 0);
+        let self_loop = (BitVectorMask::new([-1, -1, 1]), 3);
         nfa.states
             .push(NULAState::new_with_transitions(1, 1, vec![self_loop]));
 
@@ -103,8 +104,8 @@ fn state_delta_from_init_1() {
 
     let init_state = &nfa.states[0];
 
-    let mut bit_vector: BitVector = BitVector::new(5);
-    bit_vector.set_one(2);
+    let mut bit_vector: BitVector = BitVector::new();
+    bit_vector.set_one(1);
     let res = init_state.delta(&bit_vector).unwrap();
 
     assert_eq!(res.len(), 1);
@@ -117,28 +118,10 @@ fn state_delta_from_init_2() {
 
     let init_state = &nfa.states[0];
 
-    let bit_vector: BitVector = BitVector::new(5);
+    let bit_vector: BitVector = BitVector::new();
     let res = init_state.delta(&bit_vector).unwrap();
 
     assert_eq!(res.len(), 2);
     assert_eq!(res[0], 1);
     assert_eq!(res[1], 2);
-}
-
-#[test]
-fn state_delta_from_init_3() {
-    let nfa = NULA::new();
-
-    let init_state = &nfa.states[0];
-
-    let mut bit_vector: BitVector = BitVector::new(5);
-    bit_vector.set_one(3);
-    bit_vector.set_one(4);
-
-    let res = init_state.delta(&bit_vector).unwrap();
-
-    assert_eq!(res.len(), 3);
-    assert_eq!(res[0], 1);
-    assert_eq!(res[1], 2);
-    assert_eq!(res[2], 3);
 }

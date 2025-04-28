@@ -19,8 +19,6 @@ impl Map {
     }
 
     fn delta_star(&mut self, input_tape: &[u8]) -> Option<Vec<u8>> {
-        println!("started delta star");
-
         let Some(mut current_state) = self.decoder.read_first_state::<FstState>() else {
             panic!("couldn't decode first state given mmapped file");
         };

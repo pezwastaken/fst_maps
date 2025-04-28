@@ -7,7 +7,6 @@ pub const BUCKET_SIZE: usize = 8;
 
 #[derive(Debug)]
 pub struct Bucket<T> {
-    //elements: [Option<usize>; BUCKET_SIZE],
     elements: Box<[Option<T>; BUCKET_SIZE]>,
     count: usize,
 }
@@ -64,11 +63,6 @@ where
     T: AutomatonState + WithAddress + PartialEq,
 {
     pub fn new() -> Self {
-        //const EMPTY_BUCKET: Bucket = Bucket {
-        //    elements: [const { None }; BUCKET_SIZE],
-        //    count: 0,
-        //};
-
         let tmp = array_init::array_init(|_| Bucket::new());
 
         Self {
@@ -93,6 +87,7 @@ where
     }
 
     #[inline]
+    ///TODO switch to xxhash cause this is as slow as georgia asphalt
     fn hash(&self, state: &T) -> u64 {
         const FNV_PRIME: u64 = 1099511628211;
 

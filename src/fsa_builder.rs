@@ -6,8 +6,6 @@ use std::{
 use crate::fsa::Acceptor;
 
 pub fn build_fsa<'a>(filename: &str, output_to: &'a str) -> Option<Acceptor<'a>> {
-    //just for expect string
-    //let mut previous_str = "";
     let mut fsa = Acceptor::new(30, output_to);
 
     if let Ok(lines) = read_lines(filename) {
@@ -20,11 +18,6 @@ pub fn build_fsa<'a>(filename: &str, output_to: &'a str) -> Option<Acceptor<'a>>
             //index of last character of common prefix between current item and the last
             //processed word
             let prefix_len = fsa.common_prefix(&item);
-
-            //let curr_item = &item[..];
-            //let prefix = &item[0..prefix_len];
-
-            //let last_state_index = fsa.delta_star_from_initial_state(prefix).unwrap();
 
             let last_state_index = prefix_len;
             let suffix = &item[prefix_len..];
@@ -45,8 +38,6 @@ pub fn build_fsa<'a>(filename: &str, output_to: &'a str) -> Option<Acceptor<'a>>
 
             fsa.last_str_len = word_len;
             fsa.last_str[..word_len].copy_from_slice(&item[..word_len]);
-
-            //previous_str = &item;
         }
     }
 
