@@ -30,10 +30,7 @@ impl Set {
                 return false;
             };
 
-            match self
-                .decoder
-                .read_state_at_addr(next_state_addr as usize, false)
-            {
+            match self.decoder.read_state_at_addr(next_state_addr as usize) {
                 Some(state) => current_state = state,
                 None => return false,
             }

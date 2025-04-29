@@ -104,7 +104,7 @@ impl AutomatonDecoder {
         assert!(offset > offset - state_len);
         let offset = offset - state_len;
 
-        let res = self.read_state_at_addr::<T>(offset, true);
+        let res = self.read_state_at_addr::<T>(offset);
         self.prev_addr = offset;
         if offset == 0 {
             println!("offset is 0 in read state at addr");
@@ -115,29 +115,11 @@ impl AutomatonDecoder {
 
     ///decodes an fst state given its address by first deserializing its length (fixed 8 bytes
     ///starting from addr)
-    pub fn read_state_at_addr<T>(&mut self, addr: usize, is_initial_state: bool) -> Option<T>
+    pub fn read_state_at_addr<T>(&mut self, addr: usize) -> Option<T>
     where
         T: Decode<()>,
     {
         const FIXED_U64_LEN: u64 = 8;
-
-        //self.mmap_buf(addr, FIXED_U64_LEN as usize);
-
-        //len (in bytes) of the initial state
-        //conversion is safe
-        //let Ok(state_len) = self.try_decode_int(addr, is_initial_state) else {
-        //    eprintln!(
-        //        "couldn't decode fixed int starting from offset {} with len {} from file {:?}",
-        //        addr,
-        //        FIXED_U64_LEN,
-        //        self.file.metadata()
-        //    );
-        //    return None;
-        //};
-
-        //let offset = addr - state_len;
-        //remap file using the new offset and first state len as the buffer length
-        //self.mmap_buf(offset, state_len);
 
         let Ok(state) = self.try_decode_state::<T>(addr) else {
             eprintln!(

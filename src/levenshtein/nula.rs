@@ -1,7 +1,8 @@
-use crate::bit_vector::{BitVector, BitVectorMask};
+use std::marker::PhantomData;
+
+use crate::bit_vector::{BitVector, BitVectorMask, FullBitVectors};
 
 ///Non-Deterministic Universal Levenshtein Automaton
-
 pub struct NULAState {
     n_errs: usize,
     lane: isize,
@@ -45,19 +46,30 @@ impl NULAState {
     }
 }
 
-pub struct NULA {
+pub trait NULADistance {}
+pub struct Max1 {}
+
+impl NULADistance for Max1 {}
+
+pub struct NULA<T>
+where
+    T: NULADistance,
+{
     //TODO
     //distance fixed to one for now
     //max_distance: usize,
     //
     states: Vec<NULAState>,
+    _marker: std::marker::PhantomData<T>,
 }
 
-///distance = 1
-impl NULA {
+//NOTE: Only implemented for constant distance = 1
+//TODO: This could computed at compile time
+impl NULA<Max1> {
     pub fn new() -> Self {
         let mut nfa = Self {
             states: Vec::with_capacity(4),
+            _marker: PhantomData,
         };
 
         let self_loop = (BitVectorMask::new([-1, 1, -1]), 0);
@@ -71,7 +83,6 @@ impl NULA {
         ));
 
         let self_loop = (BitVectorMask::new([1, -1, -1]), 1);
-        //let self_loop = (BitVectorMask::new([-1, 1, -1, -1, -1, 0, 0]), 0);
         nfa.states
             .push(NULAState::new_with_transitions(1, -1, vec![self_loop]));
 
@@ -85,43 +96,174 @@ impl NULA {
 
         nfa
     }
+
+    ///`s` is the current word that's being processed for which equality
+    /// (within distance 1) must be checked.
+    ///
+    ///`ref_str` is the reference string. This is needed to compute
+    /// the bit vectors that are going to be fed to the automaton
+    pub fn delta_star(&self, s: &[u8], ref_str: &str) -> bool {
+        let ref_str = ref_str.as_bytes();
+
+        //compute all bit vectors for the ref_str
+        let bitvecs: FullBitVectors;
+
+        if s.len() < ref_str.len() {
+            bitvecs = FullBitVectors::new(s);
+            self.inner_delta_star(0, 0, ref_str, &bitvecs)
+        } else {
+            let bitvecs = FullBitVectors::new(ref_str);
+            self.inner_delta_star(0, 0, s, &bitvecs)
+        }
+    }
+
+    fn inner_delta_star(
+        &self,
+        current_state: usize,
+        i: usize,
+        current_str: &[u8],
+        ref_bitvecs: &FullBitVectors,
+    ) -> bool {
+        let str_len = current_str.len();
+        dbg!(current_state, i);
+
+        //+ 1 since the last bitvec to be fed is the one calculated on the terminator
+        //character at the end of the string
+        //
+        //this is needed to have the automaton reject certain strings
+        if i == str_len + 1 {
+            dbg!("got to i == str_len + 1 with  current_state: {current_state}");
+            return true;
+        }
+
+        let c = if i < str_len { current_str[i] } else { 0 };
+
+        dbg!(c);
+
+        assert!(i <= str_len);
+        assert!(current_state < self.states.len());
+
+        dbg!(ref_bitvecs.get_bitvec(c));
+
+        let ref_bitvec = ref_bitvecs.get_bitvec(c);
+
+        //single input
+        let bitvec = BitVector::from_str(i, ref_bitvec);
+        //assert_eq!(bitvec.get_positions(), [false, true, false]);
+
+        println!("bitvec for char {}: {:?}", c as char, &bitvec);
+
+        let tmp = current_state;
+        let current_state = &self.states[current_state];
+        //NOTE: as soon as an error state is reached => false is returned
+        let Some(states) = current_state.delta(&bitvec) else {
+            println!(
+                "delta returned None starting from state: {} on bitvec: {:?}",
+                tmp, &bitvec
+            );
+            return false;
+        };
+
+        let mut res = false;
+        for state in states.iter() {
+            res = res || self.inner_delta_star(*state, i + 1, current_str, ref_bitvecs);
+            //
+        }
+
+        println!();
+        res
+    }
 }
 
 #[test]
-fn build_nula() {
-    let nfa = NULA::new();
+fn delta_star_1() {
+    let nfa = NULA::<Max1>::new();
+    let ref_word = "piza";
 
-    assert_eq!(nfa.states.len(), 4);
-    assert_eq!(nfa.states[0].transitions.len(), 4);
-    assert_eq!(nfa.states[1].transitions.len(), 1);
-    assert_eq!(nfa.states[2].transitions.len(), 1);
-    assert_eq!(nfa.states[3].transitions.len(), 1);
+    let word = b"piza";
+    assert!(nfa.delta_star(word, ref_word));
 }
 
 #[test]
-fn state_delta_from_init_1() {
-    let nfa = NULA::new();
+fn delta_star_2() {
+    let nfa = NULA::<Max1>::new();
+    let ref_word = "piza";
 
-    let init_state = &nfa.states[0];
-
-    let mut bit_vector: BitVector = BitVector::new();
-    bit_vector.set_one(1);
-    let res = init_state.delta(&bit_vector).unwrap();
-
-    assert_eq!(res.len(), 1);
-    assert_eq!(res[0], 0);
+    let word = b"pizo";
+    assert!(nfa.delta_star(word, ref_word));
 }
 
 #[test]
-fn state_delta_from_init_2() {
-    let nfa = NULA::new();
+fn delta_star_3() {
+    let nfa = NULA::<Max1>::new();
+    let ref_word = "pita";
 
-    let init_state = &nfa.states[0];
+    let word = b"pizo";
+    assert!(!nfa.delta_star(word, ref_word));
+}
 
-    let bit_vector: BitVector = BitVector::new();
-    let res = init_state.delta(&bit_vector).unwrap();
+#[test]
+fn delta_star_4() {
+    let nfa = NULA::<Max1>::new();
+    let ref_word = "pizza";
 
-    assert_eq!(res.len(), 2);
-    assert_eq!(res[0], 1);
-    assert_eq!(res[1], 2);
+    let word = b"pizzo";
+    assert!(nfa.delta_star(word, ref_word));
+}
+
+#[test]
+fn delta_star_5() {
+    let nfa = NULA::<Max1>::new();
+    let ref_word = "ci";
+
+    let word = b"c";
+    assert!(nfa.delta_star(word, ref_word));
+
+    let word = b"i";
+    assert!(nfa.delta_star(word, ref_word));
+
+    let word = b"ci";
+    assert!(nfa.delta_star(word, ref_word));
+
+    let word = b"di";
+    assert!(nfa.delta_star(word, ref_word));
+
+    let word = b"ca";
+    assert!(nfa.delta_star(word, ref_word));
+
+    let word = b"cc";
+    assert!(nfa.delta_star(word, ref_word));
+
+    let word = b"cic";
+    assert!(nfa.delta_star(word, ref_word));
+
+    let word = b"cii";
+    assert!(nfa.delta_star(word, ref_word));
+
+    let word = b"cia";
+    assert!(nfa.delta_star(word, ref_word));
+}
+
+#[test]
+fn delta_star_6() {
+    let nfa = NULA::<Max1>::new();
+    let ref_word = "hey";
+
+    let word = b"hye";
+    assert!(!nfa.delta_star(word, ref_word));
+
+    let word = b"heya";
+    assert!(nfa.delta_star(word, ref_word));
+
+    let word = b"heyy";
+    assert!(nfa.delta_star(word, ref_word));
+
+    let word = b"heyyy";
+    assert!(!nfa.delta_star(word, ref_word));
+
+    let word = b"h";
+    assert!(!nfa.delta_star(word, ref_word));
+
+    let word = b"heh";
+    assert!(nfa.delta_star(word, ref_word));
 }
