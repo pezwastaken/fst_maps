@@ -4,7 +4,7 @@ use crate::bit_vector::{BitVector, BitVectorMask, FullBitVectors};
 
 ///Non-Deterministic Universal Levenshtein Automaton
 pub struct NULAState {
-    n_errs: usize,
+    n_errs: isize,
     lane: isize,
 
     //a nula transition is a pair:
@@ -14,7 +14,7 @@ pub struct NULAState {
 }
 
 impl NULAState {
-    fn new_no_transitions(errs: usize, l: isize) -> Self {
+    fn new_no_transitions(errs: isize, l: isize) -> Self {
         Self {
             n_errs: errs,
             lane: l,
@@ -22,7 +22,7 @@ impl NULAState {
         }
     }
 
-    fn new_with_transitions(errs: usize, l: isize, t: Vec<(BitVectorMask, usize)>) -> Self {
+    fn new_with_transitions(errs: isize, l: isize, t: Vec<(BitVectorMask, usize)>) -> Self {
         Self {
             n_errs: errs,
             lane: l,
@@ -43,6 +43,17 @@ impl NULAState {
             return Some(res);
         }
         None
+    }
+
+    ///Used by the reduction algorithm to find redundant states
+    pub fn subsumes(&self, other: &Self) -> bool {
+        let tmp1 = self.lane + self.n_errs - other.n_errs;
+        let tmp2 = self.lane + other.lane - self.lane;
+
+        if self.n_errs < other.n_errs && (tmp1 <= other.lane && other.lane <= tmp2) {
+            return true;
+        }
+        false
     }
 }
 
@@ -174,7 +185,6 @@ impl NULA<Max1> {
         res
     }
 }
-
 #[test]
 fn delta_star_1() {
     let nfa = NULA::<Max1>::new();

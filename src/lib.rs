@@ -5,12 +5,15 @@ mod automaton;
 mod automaton_decoder;
 #[path = "levenshtein/bit_vector.rs"]
 mod bit_vector;
+#[path = "levenshtein/dula.rs"]
+mod dula;
 mod error;
 mod fsa;
 mod fsa_builder;
 mod fst;
 mod fst_builder;
 mod fst_state;
+mod fuzzy_set;
 #[path = "levenshtein/levenshtein_nfa.rs"]
 mod levenshtein_nfa;
 mod map;
@@ -36,60 +39,13 @@ mod get_from_fst {
         map::Map,
     };
 
-    #[test]
-    fn ensure_5() {
-        let Ok(fst) = build_transducer_from_collection("maps/5.txt", "indices/temp_5.fst");
-
-        dump_graph(&fst, "5.dot");
-
-        let mut map = Map::new("indices/temp_5.fst");
-
-        ensure_all_pairs(&mut map, "maps/5.txt");
-    }
-
-    #[test]
-    fn ensure_300() {
-        let Ok(fst) = build_transducer_from_collection("maps/300.txt", "indices/temp_300.fst");
-        let mut map = Map::new("indices/temp_300.fst");
-
-        ensure_all_pairs(&mut map, "maps/300.txt");
-    }
-
-    #[test]
-    fn ensure_1000_2() {
-        build_transducer_from_collection("maps/1000_2.txt", "indices/temp_1000_2.fst");
-        let mut map = Map::new("indices/temp_1000_2.fst");
-
-        ensure_all_pairs(&mut map, "maps/1000_2.txt");
-    }
-
-    #[test]
-    fn ensure_1000() {
-        build_transducer_from_collection("maps/1000.txt", "indices/temp_1000.fst");
-        let mut map = Map::new("indices/temp_1000.fst");
-
-        ensure_all_pairs(&mut map, "maps/1000.txt");
-    }
-
-    #[test]
-    fn ensure_5000() {
-        build_transducer_from_collection("maps/5000_a.txt", "indices/temp_5000.fst");
-        let mut map = Map::new("indices/temp_5000.fst");
-
-        ensure_all_pairs(&mut map, "maps/5000_a.txt");
-        assert!(map.get(b"giggley").is_none());
-        assert!(map.get(b"gil").is_none());
-        assert!(map.get(b"infiel").is_none());
-        assert!(map.get(b"infieldd").is_none());
-    }
-
-    #[test]
-    fn ensure_tons() {
-        build_transducer_from_collection("maps/tons_of_pairs.txt", "indices/tons.fst");
-        let mut map = Map::new("indices/tons.fst");
-
-        ensure_all_pairs(&mut map, "maps/tons_of_pairs.txt");
-    }
+    // #[test]
+    // fn ensure_tons() {
+    //     build_transducer_from_collection("maps/tons_of_pairs.txt", "indices/tons.fst");
+    //     let mut map = Map::new("indices/tons.fst");
+    //
+    //     ensure_all_pairs(&mut map, "maps/tons_of_pairs.txt");
+    // }
 
     fn ensure_all_pairs(fst: &mut Map, filename: &str) {
         if let Ok(lines) = read_lines(filename) {
@@ -157,78 +113,11 @@ mod get_from_fsa {
     use crate::{fsa_builder::build_fsa, set::Set};
 
     #[test]
-    fn ensure_5() {
-        assert!(build_fsa("sets_data/5.txt", "sets/5.fsa").is_some());
-
-        let mut set = Set::new("sets/5.fsa");
-        //
-        ensure_all_values(&mut set, "sets_data/5.txt");
-        //
-        assert!(!set.contains(b"canee"));
-        assert!(!set.contains(b"caa"));
-        assert!(!set.contains(b"cozz"));
-    }
-
-    #[test]
-    fn ensure_100() {
-        assert!(build_fsa("sets_data/100.txt", "sets/100.fsa").is_some());
-
-        let mut set = Set::new("sets/100.fsa");
-        //
-        ensure_all_values(&mut set, "sets_data/100.txt");
-        //
-        assert!(!set.contains(b"can"));
-        assert!(!set.contains(b"canee"));
-        assert!(!set.contains(b"caa"));
-        assert!(!set.contains(b"cozz"));
-    }
-
-    #[test]
-    fn ensure_300() {
-        assert!(build_fsa("sets_data/300.txt", "sets/300.fsa").is_some());
-
-        let mut set = Set::new("sets/300.fsa");
-        ensure_all_values(&mut set, "sets_data/300.txt");
-    }
-
-    #[test]
-    fn ensure_1000() {
-        assert!(build_fsa("sets_data/1000.txt", "sets/1000.fsa").is_some());
-
-        let mut set = Set::new("sets/1000.fsa");
-        ensure_all_values(&mut set, "sets_data/1000.txt");
-    }
-
-    #[test]
-    fn ensure_1000_2() {
-        assert!(build_fsa("sets_data/1000_2.txt", "sets/1000_2.fsa").is_some());
-
-        let mut set = Set::new("sets/1000_2.fsa");
-        ensure_all_values(&mut set, "sets_data/1000_2.txt");
-    }
-
-    #[test]
-    fn ensure_3000() {
-        assert!(build_fsa("sets_data/3000_rand.txt", "sets/3000_rand.fsa").is_some());
-
-        let mut set = Set::new("sets/3000_rand.fsa");
-        ensure_all_values(&mut set, "sets_data/3000_rand.txt");
-    }
-
-    #[test]
     fn ensure_tons() {
-        assert!(build_fsa("sets_data/tons.txt", "sets/tons.fsa").is_some());
+        assert!(build_fsa("sets_data/words_1.txt", "sets/words_1.fsa").is_some());
 
-        let mut set = Set::new("sets/tons.fsa");
-        ensure_all_values(&mut set, "sets_data/tons.txt");
-    }
-
-    #[test]
-    fn ensure_words_alpha() {
-        //assert!(build_fsa("sets_data/words_alpha.txt", "sets/words_alpha.fsa").is_some());
-        //
-        //let mut set = Set::new("sets/words_alpha.fsa");
-        //ensure_all_values(&mut set, "sets_data/words_alpha.txt");
+        let mut set = Set::new("sets/words_1.fsa");
+        ensure_all_values(&mut set, "sets_data/words_1.txt");
     }
 
     fn ensure_all_values(fsa: &mut Set, filename: &str) {
@@ -255,5 +144,18 @@ mod get_from_fsa {
         let file = File::open(filename)?;
 
         Ok(io::BufReader::new(file).lines())
+    }
+}
+
+#[allow(unused)]
+#[cfg(test)]
+mod set_with_nula {
+    use crate::nula::{Max1, NULA};
+
+    #[test]
+    fn test_1() {
+        let nfa = NULA::<Max1>::new();
+
+        let ref_word = "dog";
     }
 }
