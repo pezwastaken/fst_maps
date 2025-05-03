@@ -46,7 +46,7 @@ impl NULAState {
     }
 
     ///Used by the reduction algorithm to find redundant states
-    pub fn subsumes(&self, other: &Self) -> bool {
+    fn subsumes(&self, other: &Self) -> bool {
         let tmp1 = self.lane + self.n_errs - other.n_errs;
         let tmp2 = self.lane + other.lane - self.lane;
 
@@ -58,6 +58,8 @@ impl NULAState {
 }
 
 pub trait NULADistance {}
+
+#[derive(Debug)]
 pub struct Max1 {}
 
 impl NULADistance for Max1 {}
@@ -106,6 +108,13 @@ impl NULA<Max1> {
             .push(NULAState::new_with_transitions(1, 1, vec![self_loop]));
 
         nfa
+    }
+
+    pub fn delta(&self, state: usize, input: &BitVector) -> Option<Vec<usize>> {
+        assert!(!self.states.is_empty());
+        let state = &self.states[state];
+
+        state.delta(input)
     }
 
     ///`s` is the current word that's being processed for which equality
@@ -183,6 +192,16 @@ impl NULA<Max1> {
 
         println!();
         res
+    }
+
+    pub fn subsumes(&self, i: usize, other: usize) -> bool {
+        assert!(other < self.states.len());
+        let state = &self.states[i];
+        state.subsumes(&self.states[other])
+    }
+
+    pub fn get_transitions(&self, i: usize) -> &[(BitVectorMask, usize)] {
+        &self.states[i].transitions
     }
 }
 #[test]

@@ -24,7 +24,7 @@ impl FullBitVectors {
         //let mut bitvec_refs: Vec<usize> = Vec::with_capacity(word.len());
 
         for c in word.iter() {
-            //cache miss, the character still doesn't have a bit vector
+            //miss, the character still doesn't have a bit vector
             match cache[*c as usize] {
                 None => {
                     //index at which the new bitvec will be found
@@ -100,6 +100,9 @@ impl BitVector {
         }
     }
 
+    pub const fn from_bool_arr(arr: [bool; VECTOR_MAX_SIZE]) -> Self {
+        Self { positions: arr }
+    }
     ///It is assumed that ref_string only contains the strictly necessary characters.
     ///No more no less.
     ///
@@ -160,6 +163,7 @@ impl BitVector {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BitVectorMask([i8; VECTOR_MAX_SIZE]);
 
 impl BitVectorMask {
@@ -177,6 +181,18 @@ impl BitVectorMask {
                     || (self.0[i] == 1 && bit_vector.positions[i]));
         }
         res
+    }
+}
+
+impl From<&BitVector> for BitVectorMask {
+    fn from(value: &BitVector) -> Self {
+        let mut arr = [0; VECTOR_MAX_SIZE];
+        for i in 0..VECTOR_MAX_SIZE {
+            if value.one_at_pos(i) {
+                arr[i] = 1;
+            }
+        }
+        Self { 0: arr }
     }
 }
 

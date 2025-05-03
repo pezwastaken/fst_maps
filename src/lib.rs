@@ -146,16 +146,3 @@ mod get_from_fsa {
         Ok(io::BufReader::new(file).lines())
     }
 }
-
-#[allow(unused)]
-#[cfg(test)]
-mod set_with_nula {
-    use crate::nula::{Max1, NULA};
-
-    #[test]
-    fn test_1() {
-        let nfa = NULA::<Max1>::new();
-
-        let ref_word = "dog";
-    }
-}

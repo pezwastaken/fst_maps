@@ -3,8 +3,6 @@ use std::{
     io::{self, Write},
 };
 
-use crate::{automaton::AutomatonState, fst_state::TransitionOutput};
-
 #[derive(Debug)]
 pub enum Char {
     Eps,
@@ -57,7 +55,7 @@ impl NfaState {
     }
 
     #[inline]
-    fn delta(&self, c: Char) -> Option<Vec<usize>> {
+    fn delta(&self, _: Char) -> Option<Vec<usize>> {
         todo!(
             "delta is fine here if eps transitions are not considered. Just any and exact should be considered when looking for transitions on char `on_char`"
         );
