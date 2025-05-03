@@ -1,3 +1,5 @@
+use std::thread::current;
+
 const VECTOR_MAX_SIZE: usize = 3;
 
 ///This struct is used to represent an arbitrary string as a collection of
@@ -16,12 +18,12 @@ pub struct FullBitVectors {
 }
 
 impl FullBitVectors {
+    ///Returns a sequence of bitvectors where its elements are used as references
+    ///to generate the bitvectors that are going to be fed to the automaton.
     pub fn new(word: &[u8]) -> Self {
         let mut cache: [Option<usize>; 255] = [None; 255];
 
-        //TODO: this may be a bit too much
         let mut inner_bitvecs: Vec<Vec<bool>> = Vec::with_capacity(word.len());
-        //let mut bitvec_refs: Vec<usize> = Vec::with_capacity(word.len());
 
         for c in word.iter() {
             //miss, the character still doesn't have a bit vector
@@ -103,6 +105,7 @@ impl BitVector {
     pub const fn from_bool_arr(arr: [bool; VECTOR_MAX_SIZE]) -> Self {
         Self { positions: arr }
     }
+
     ///It is assumed that ref_string only contains the strictly necessary characters.
     ///No more no less.
     ///
@@ -127,6 +130,8 @@ impl BitVector {
             .enumerate()
             .filter(|(_, x)| **x == true);
 
+        dbg!(&ones);
+
         for (i, _) in ones {
             bit_vector.set_one_with_offset(i as isize - at_index as isize);
         }
@@ -142,6 +147,25 @@ impl BitVector {
             self.positions[i] = true;
         }
         //offset out of bounds, no op
+    }
+
+    ///Used to generate the bitvector for the terminator character
+    #[inline]
+    pub fn terminator_bitvec(len_current_str: usize, len_ref_str: usize) -> Self {
+        let offset = len_ref_str as isize - len_current_str as isize;
+        dbg!(offset);
+
+        let mut bitvec = [false; VECTOR_MAX_SIZE];
+
+        let offset: isize = if offset < -1 { -1 } else { offset };
+
+        if offset >= -1 && offset <= 1 {
+            let offset: usize = (offset + 1) as usize;
+            for i in offset..VECTOR_MAX_SIZE {
+                bitvec[i] = true;
+            }
+        }
+        Self { positions: bitvec }
     }
 
     #[inline]
@@ -406,4 +430,21 @@ fn fullbitvec_2() {
         bitvecs.get_bitvec(b'i'),
         [false, true, false, true, false, false]
     );
+}
+
+#[test]
+fn test_shorter_ref_1() {
+    let ref_str = "pan";
+    let bitvecs = FullBitVectors::new(ref_str.as_bytes());
+
+    // let word = "pangolino";
+    let bitvec_1 = BitVector::from_str(0, bitvecs.get_bitvec(b'p'));
+    // dbg!(bitvec_1);
+
+    let bitvec_1 = BitVector::from_str(7, bitvecs.get_bitvec(b'n'));
+    // dbg!(bitvec_1);
+
+    let bitvec_1 = BitVector::terminator_bitvec(9, ref_str.len());
+    assert_eq!(bitvec_1.positions, [true, true, true]);
+    // dbg!(bitvec_1);
 }

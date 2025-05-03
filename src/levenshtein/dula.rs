@@ -112,21 +112,30 @@ impl DULA<Max1> {
             }
         }
 
-        //there are still k terminators left to process (at the end of current_str)
+        //there are still 2 terminators left to process (at the end of current_str)
         //NOTE: this is hardcoded since there's only k = 1
 
         let c = 0;
         let i = current_str.len();
+        //FIX: horrendous way to get the length of ref_str
+        let ref_len = ref_bitvecs.get_bitvec(0).len() - 2;
 
-        let ref_bitvec = ref_bitvecs.get_bitvec(c);
-        let input_bitvec = BitVector::from_str(i, ref_bitvec);
+        for i in 0..2 {
+            let i = i + current_str.len();
 
-        let reached_state = self.delta(current_state, &input_bitvec);
+            let input_bitvec = BitVector::terminator_bitvec(i, ref_len);
 
-        match reached_state {
-            Some(_) => true,
-            None => false,
+            let reached_state = self.delta(current_state, &input_bitvec);
+            dbg!(reached_state);
+
+            match reached_state {
+                Some(to_state) => {
+                    current_state = to_state;
+                }
+                None => return false,
+            }
         }
+        true
     }
 
     //each state in the dula is actually a combination of nula states
@@ -151,7 +160,7 @@ impl DULA<Max1> {
             .push((BitVectorMask::from(bitvec), to_state));
     }
 
-    fn delta(&self, current_state: usize, input_bitvec: &BitVector) -> Option<usize> {
+    pub fn delta(&self, current_state: usize, input_bitvec: &BitVector) -> Option<usize> {
         assert!(current_state < self.states.len());
         let state = &self.states[current_state];
 
@@ -375,6 +384,9 @@ fn delta_star_6() {
 
     let ref_word = "hey";
 
+    let word = b"e";
+    assert!(!dfa.delta_star(word, ref_word));
+
     let word = b"hye";
     assert!(!dfa.delta_star(word, ref_word));
 
@@ -392,4 +404,15 @@ fn delta_star_6() {
 
     let word = b"heh";
     assert!(dfa.delta_star(word, ref_word));
+}
+
+#[test]
+fn delta_star_7() {
+    let nfa = NULA::<Max1>::new();
+    let dfa = build_dula(&nfa);
+
+    let ref_word = "pangolino";
+
+    let word = b"pagolinon";
+    assert!(!dfa.delta_star(word, ref_word));
 }
