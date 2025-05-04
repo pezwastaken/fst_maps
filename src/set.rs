@@ -23,8 +23,6 @@ impl Set {
             panic!("couldn't decode first state given mmapped file");
         };
 
-        //dbg!(&current_state);
-
         for c in input_tape {
             let Some(next_state_addr) = current_state.delta(*c) else {
                 return false;
@@ -34,7 +32,6 @@ impl Set {
                 Some(state) => current_state = state,
                 None => return false,
             }
-            //dbg!(&current_state);
         }
 
         current_state.is_final()

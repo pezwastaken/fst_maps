@@ -12,7 +12,6 @@ type States = Vec<FstState>;
 
 #[derive(Debug)]
 pub struct Transducer<'a> {
-    //pub states: States,
     //TODO REMOVE this
     //It's just to output the dot graph
     pub states: States,

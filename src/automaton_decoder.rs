@@ -5,7 +5,8 @@ use std::fs::File;
 pub struct AutomatonDecoder {
     mmap: Option<Mmap>,
     file: File,
-    prev_addr: usize,
+    // prev_addr: usize,
+    max_state_len: usize,
 }
 
 impl AutomatonDecoder {
@@ -17,7 +18,7 @@ impl AutomatonDecoder {
         Ok(Self {
             mmap: Some(map),
             file: f,
-            prev_addr: 0,
+            max_state_len: 0,
         })
     }
 
@@ -25,12 +26,14 @@ impl AutomatonDecoder {
     where
         T: Decode<()>,
     {
-        assert!(self.prev_addr > offset);
+        // assert!(self.prev_addr > offset);
         if let Some(bytes) = self.mmap.as_ref() {
             assert!(!bytes.is_empty());
 
+            let upper_bound = offset + self.max_state_len;
+
             let decoded = bincode::decode_from_slice::<T, _>(
-                &bytes[offset..self.prev_addr],
+                &bytes[offset..upper_bound],
                 bincode::config::standard(),
             );
 
@@ -92,10 +95,15 @@ impl AutomatonDecoder {
         let file_len = self.file_len()?;
         assert_ne!(file_len, 0);
 
-        //SAFE
-        self.prev_addr = file_len as usize;
-        //println!("file len is: {}", file_len);
         let offset = file_len as usize - FIXED_U64_LEN;
+
+        let Ok(max_state_len) = self.try_decode_int(offset, true) else {
+            return None;
+        };
+
+        self.max_state_len = max_state_len;
+
+        let offset = offset - FIXED_U64_LEN;
 
         let Ok(state_len) = self.try_decode_int(offset, true) else {
             return None;
@@ -105,7 +113,6 @@ impl AutomatonDecoder {
         let offset = offset - state_len;
 
         let res = self.read_state_at_addr::<T>(offset);
-        self.prev_addr = offset;
         if offset == 0 {
             println!("offset is 0 in read state at addr");
         }
@@ -129,8 +136,6 @@ impl AutomatonDecoder {
             );
             return None;
         };
-
-        self.prev_addr = addr;
 
         return Some(state);
     }

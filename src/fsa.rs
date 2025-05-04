@@ -108,6 +108,7 @@ pub struct Acceptor<'a> {
     pub last_str_len: usize,
     pub register: Register<FsaState>,
     writer: RawWriter<'a>,
+    max_bytes_state: usize,
 }
 
 impl<'a> Acceptor<'a> {
@@ -125,6 +126,7 @@ impl<'a> Acceptor<'a> {
                 last_str_len: 0,
                 register: Register::new(),
                 writer: wr,
+                max_bytes_state: 0,
             }
         } else {
             panic!("couldn't create a writer to the given file");
@@ -246,41 +248,40 @@ impl<'a> Acceptor<'a> {
     pub fn persist_state(&mut self, i: usize) -> Result<(), EncodeError> {
         let state = &self.states[i];
 
-        //TODO remove this
-        //It was needed to write the len of each state
-        //let wrote = self.writer.write_state::<InnerFsaState>(&state.inner)?;
-        let _ = self.writer.write_state::<InnerFsaState>(&state.inner)?;
+        let wrote = self.writer.write_state::<InnerFsaState>(&state.inner)?;
 
-        //this is the address that is to be returned
-        //let total_written_bytes = self.writer.get_written_bytes();
+        if wrote > self.max_bytes_state {
+            self.max_bytes_state = wrote;
+        }
+
         Ok(())
-        //Ok(total_written_bytes)
-        //
-        //match self.writer.write_int(wrote) {
-        //    Ok(_) => Ok(total_written_bytes),
-        //    Err(e) => panic!("error while writing fixed int: {e:?}"),
-        //}
     }
 
     pub fn persist_initial_state(&mut self) -> MyResult<()> {
         let state = &self.states[0];
 
-        //TODO remove this
-        //It was needed to write the len of each state
         let wrote = self.writer.write_state::<InnerFsaState>(&state.inner)?;
 
-        //this is the address that is to be returned
-        //let total_written_bytes = self.writer.get_written_bytes();
+        if wrote > self.max_bytes_state {
+            self.max_bytes_state = wrote;
+        }
 
-        match self.writer.write_fixed_int(wrote) {
+        // match self.writer.write_fixed_int(wrote) {
+        //     Ok(_) => {
+        //         self.writer.flush()?;
+        //         Ok(())
+        //     }
+        //     Err(e) => Err(e.into()),
+        // }
+        self.writer.write_fixed_int(wrote)?;
+
+        match self.writer.write_fixed_int(self.max_bytes_state) {
             Ok(_) => {
                 self.writer.flush()?;
                 Ok(())
             }
             Err(e) => Err(e.into()),
         }
-
-        //self.writer.write_fixed_int(wrote)?;
     }
 
     pub fn state_has_children(&self, state_index: usize) -> bool {

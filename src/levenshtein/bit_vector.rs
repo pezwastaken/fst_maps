@@ -1,5 +1,3 @@
-use std::thread::current;
-
 const VECTOR_MAX_SIZE: usize = 3;
 
 ///This struct is used to represent an arbitrary string as a collection of
@@ -130,8 +128,6 @@ impl BitVector {
             .enumerate()
             .filter(|(_, x)| **x == true);
 
-        dbg!(&ones);
-
         for (i, _) in ones {
             bit_vector.set_one_with_offset(i as isize - at_index as isize);
         }
@@ -153,7 +149,6 @@ impl BitVector {
     #[inline]
     pub fn terminator_bitvec(len_current_str: usize, len_ref_str: usize) -> Self {
         let offset = len_ref_str as isize - len_current_str as isize;
-        dbg!(offset);
 
         let mut bitvec = [false; VECTOR_MAX_SIZE];
 
@@ -439,12 +434,12 @@ fn test_shorter_ref_1() {
 
     // let word = "pangolino";
     let bitvec_1 = BitVector::from_str(0, bitvecs.get_bitvec(b'p'));
-    // dbg!(bitvec_1);
+    dbg!(bitvec_1);
 
     let bitvec_1 = BitVector::from_str(7, bitvecs.get_bitvec(b'n'));
-    // dbg!(bitvec_1);
+    dbg!(bitvec_1);
 
     let bitvec_1 = BitVector::terminator_bitvec(9, ref_str.len());
     assert_eq!(bitvec_1.positions, [true, true, true]);
-    // dbg!(bitvec_1);
+    dbg!(bitvec_1);
 }

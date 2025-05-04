@@ -39,85 +39,116 @@ impl FuzzySet {
         assert!(self.dula_state_stack.is_empty());
         self.dula_state_stack.push(0);
 
+        //go through each transition belonging to state 0
         for transition in current_state.get_transitions().iter() {
-            self.visit(transition.0, transition.1, &dula, &mut accepted_str);
+            let on_char = transition.0;
+            let to_state = transition.1;
+
+            let associated_bitvec = BitVector::from_str(0, self.ref_bitvec.get_bitvec(on_char));
+
+            //if reading char ``on_char`` brings the dula to a non-error state,
+            //then continue visiting that subtree
+            //
+            if let Some(next_dula_state) = dula.delta(0, &associated_bitvec) {
+                self.dula_state_stack.push(next_dula_state);
+                accepted_str.push(on_char);
+
+                self.visit(to_state, &dula, &mut accepted_str);
+
+                self.backtrack(&mut accepted_str);
+            };
+
             assert_eq!(self.dula_state_stack.len(), 1);
+            assert_eq!(accepted_str.len(), 0);
         }
 
-        assert_eq!(self.dula_state_stack.len(), 1);
+        //cleanup
         self.dula_state_stack.pop();
+        // accepted_str.pop();
 
         true
     }
 
-    fn visit(
-        &mut self,
-        c: u8,
-        state_addr: usize,
-        dula: &DULA<Max1>,
-        output_str: &mut Vec<u8>,
-    ) -> bool {
+    #[inline]
+    fn backtrack(&mut self, accepted_str: &mut Vec<u8>) {
+        self.dula_state_stack.pop();
+        accepted_str.pop();
+    }
+
+    fn visit(&mut self, state_addr: usize, dula: &DULA<Max1>, output_str: &mut Vec<u8>) {
         let char_at = output_str.len();
-        output_str.push(c);
 
-        let input_bitvec = BitVector::from_str(char_at, self.ref_bitvec.get_bitvec(c));
-
-        //TODO: there should be a check for final states
-        //In case of a final state, the bitvec for the terminator char should
-        // be generated instead
-        let Some(dula_current_state) = self.dula_state_stack.last() else {
-            unreachable!("should never have an empty stack of states");
-        };
-
-        //dula reached error state => prune the search tree
-        let Some(dula_next_state) = dula.delta(*dula_current_state, &input_bitvec) else {
-            self.dula_state_stack.pop();
-            output_str.pop();
-            return false;
-        };
-
-        self.dula_state_stack.push(dula_next_state);
-
-        //get the current state (the acceptor one)
+        //decode the current acceptor state
         let Some(current_state) = self.decoder.read_state_at_addr::<InnerFsaState>(state_addr)
         else {
-            eprintln!("transition brought to an unreadable state at addr: {state_addr}");
-            self.dula_state_stack.pop();
-            output_str.pop();
-            return false;
+            panic!("transition addr pointed to an invalid address!");
         };
 
         if current_state.is_final() {
-            println!(
-                "key: {} has distance <= 1",
-                std::str::from_utf8(&output_str).unwrap()
-            );
+            if self.check_terminator_char(char_at, dula) {
+                dbg!(std::str::from_utf8(output_str).unwrap());
+            }
         }
 
-        let tmp_1 = output_str.len();
-        let tmp_2 = self.dula_state_stack.len();
+        for transition in current_state.get_transitions() {
+            let on_char = transition.0;
+            let to_state = transition.1;
 
-        for out_transition in current_state.get_transitions() {
-            let on_char = out_transition.0;
-            let to_addr = out_transition.1;
-            self.visit(on_char, to_addr, dula, output_str);
+            //get the bitvector associated with the transition character
+            let associated_bitvec =
+                BitVector::from_str(char_at, self.ref_bitvec.get_bitvec(on_char));
+
+            let current_dula_state = self.dula_state_stack.last().unwrap();
+
+            //if reading char ``on_char`` brings the dula to a non-error state,
+            //then continue visiting this subtree
+            if let Some(next_dula_state) = dula.delta(*current_dula_state, &associated_bitvec) {
+                self.dula_state_stack.push(next_dula_state);
+                output_str.push(on_char);
+
+                self.visit(to_state, &dula, output_str);
+
+                self.backtrack(output_str);
+            };
         }
+    }
 
-        assert_eq!(output_str.len(), tmp_1);
-        assert_eq!(self.dula_state_stack.len(), tmp_2);
+    fn check_terminator_char(&self, str_len: usize, dula: &DULA<Max1>) -> bool {
+        let mut dula_current_state = self.dula_state_stack.last().unwrap().clone();
 
-        self.dula_state_stack.pop();
-        output_str.pop();
+        //FIX: horrendous way to get the length of ref_str
+        let ref_len = self.ref_bitvec.get_bitvec(0).len() - 2;
 
+        for i in 0..2 {
+            let i = i + str_len;
+
+            let input_bitvec = BitVector::terminator_bitvec(i, ref_len);
+
+            let reached_state = dula.delta(dula_current_state, &input_bitvec);
+
+            match reached_state {
+                Some(to_state) => {
+                    dula_current_state = to_state;
+                }
+                None => return false,
+            }
+        }
         true
     }
 }
+//
+// #[test]
+// fn test_1() {
+//     let _ = build_fsa("sets_data/bag.txt", "sets/bag.fsa");
+//     let mut fuzzy_set = FuzzySet::new("sets/bag.fsa", "dog");
+//
+//     fuzzy_set.fuzzy_search();
+// }
 
 #[test]
-fn test_1() {
-    let _ = build_fsa("sets_data/bag.txt", "sets/bag.fsa");
-    let mut fuzzy_set = FuzzySet::new("sets/bag.fsa", "dog");
-    println!("ciao");
+fn test_2() {
+    let _ = build_fsa("sets_data/words_1.txt", "sets/words_1.fsa");
+    let mut fuzzy_set = FuzzySet::new("sets/words_1.fsa", "kangaroo");
 
     fuzzy_set.fuzzy_search();
 }

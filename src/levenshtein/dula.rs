@@ -115,8 +115,6 @@ impl DULA<Max1> {
         //there are still 2 terminators left to process (at the end of current_str)
         //NOTE: this is hardcoded since there's only k = 1
 
-        let c = 0;
-        let i = current_str.len();
         //FIX: horrendous way to get the length of ref_str
         let ref_len = ref_bitvecs.get_bitvec(0).len() - 2;
 

@@ -87,7 +87,6 @@ where
     }
 
     #[inline]
-    ///TODO switch to xxhash cause this is as slow as georgia asphalt
     fn hash(&self, state: &T) -> u64 {
         const FNV_PRIME: u64 = 1099511628211;
 
