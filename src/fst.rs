@@ -60,7 +60,7 @@ impl<'a> Transducer<'a> {
     ///
     ///process input tape starting from `state`.
     ///Returns a tuple containing the reached state (if no errors) and the last seen final state if any, otherwise None.
-    pub fn delta_star_final_state(&self, input_tape: &[u8]) -> (Option<usize>, Option<usize>) {
+    pub fn delta_hat_final_state(&self, input_tape: &[u8]) -> (Option<usize>, Option<usize>) {
         assert!(!self.temp_states.is_empty());
 
         //a vector containing the output associated with the current final state

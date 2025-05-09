@@ -15,10 +15,10 @@ impl Map {
     }
 
     pub fn get(&mut self, key: &[u8]) -> Option<Vec<u8>> {
-        self.delta_star(key)
+        self.delta_hat(key)
     }
 
-    fn delta_star(&mut self, input_tape: &[u8]) -> Option<Vec<u8>> {
+    fn delta_hat(&mut self, input_tape: &[u8]) -> Option<Vec<u8>> {
         let Some(mut current_state) = self.decoder.read_first_state::<FstState>() else {
             panic!("couldn't decode first state given mmapped file");
         };

@@ -122,7 +122,7 @@ impl NULA<Max1> {
     ///
     ///`ref_str` is the reference string. This is needed to compute
     /// the bit vectors that are going to be fed to the automaton
-    pub fn delta_star(&self, s: &[u8], ref_str: &str) -> bool {
+    pub fn delta_hat(&self, s: &[u8], ref_str: &str) -> bool {
         let ref_str = ref_str.as_bytes();
 
         //compute all bit vectors for the ref_str
@@ -130,14 +130,14 @@ impl NULA<Max1> {
 
         if s.len() < ref_str.len() {
             bitvecs = FullBitVectors::new(s);
-            self.inner_delta_star(0, 0, ref_str, &bitvecs)
+            self.inner_delta_hat(0, 0, ref_str, &bitvecs)
         } else {
             let bitvecs = FullBitVectors::new(ref_str);
-            self.inner_delta_star(0, 0, s, &bitvecs)
+            self.inner_delta_hat(0, 0, s, &bitvecs)
         }
     }
 
-    fn inner_delta_star(
+    fn inner_delta_hat(
         &self,
         current_state: usize,
         i: usize,
@@ -186,7 +186,7 @@ impl NULA<Max1> {
 
         let mut res = false;
         for state in states.iter() {
-            res = res || self.inner_delta_star(*state, i + 1, current_str, ref_bitvecs);
+            res = res || self.inner_delta_hat(*state, i + 1, current_str, ref_bitvecs);
             //
         }
 
@@ -205,94 +205,94 @@ impl NULA<Max1> {
     }
 }
 #[test]
-fn delta_star_1() {
+fn delta_hat_1() {
     let nfa = NULA::<Max1>::new();
     let ref_word = "piza";
 
     let word = b"piza";
-    assert!(nfa.delta_star(word, ref_word));
+    assert!(nfa.delta_hat(word, ref_word));
 }
 
 #[test]
-fn delta_star_2() {
+fn delta_hat_2() {
     let nfa = NULA::<Max1>::new();
     let ref_word = "piza";
 
     let word = b"pizo";
-    assert!(nfa.delta_star(word, ref_word));
+    assert!(nfa.delta_hat(word, ref_word));
 }
 
 #[test]
-fn delta_star_3() {
+fn delta_hat_3() {
     let nfa = NULA::<Max1>::new();
     let ref_word = "pita";
 
     let word = b"pizo";
-    assert!(!nfa.delta_star(word, ref_word));
+    assert!(!nfa.delta_hat(word, ref_word));
 }
 
 #[test]
-fn delta_star_4() {
+fn delta_hat_4() {
     let nfa = NULA::<Max1>::new();
     let ref_word = "pizza";
 
     let word = b"pizzo";
-    assert!(nfa.delta_star(word, ref_word));
+    assert!(nfa.delta_hat(word, ref_word));
 }
 
 #[test]
-fn delta_star_5() {
+fn delta_hat_5() {
     let nfa = NULA::<Max1>::new();
     let ref_word = "ci";
 
     let word = b"c";
-    assert!(nfa.delta_star(word, ref_word));
+    assert!(nfa.delta_hat(word, ref_word));
 
     let word = b"i";
-    assert!(nfa.delta_star(word, ref_word));
+    assert!(nfa.delta_hat(word, ref_word));
 
     let word = b"ci";
-    assert!(nfa.delta_star(word, ref_word));
+    assert!(nfa.delta_hat(word, ref_word));
 
     let word = b"di";
-    assert!(nfa.delta_star(word, ref_word));
+    assert!(nfa.delta_hat(word, ref_word));
 
     let word = b"ca";
-    assert!(nfa.delta_star(word, ref_word));
+    assert!(nfa.delta_hat(word, ref_word));
 
     let word = b"cc";
-    assert!(nfa.delta_star(word, ref_word));
+    assert!(nfa.delta_hat(word, ref_word));
 
     let word = b"cic";
-    assert!(nfa.delta_star(word, ref_word));
+    assert!(nfa.delta_hat(word, ref_word));
 
     let word = b"cii";
-    assert!(nfa.delta_star(word, ref_word));
+    assert!(nfa.delta_hat(word, ref_word));
 
     let word = b"cia";
-    assert!(nfa.delta_star(word, ref_word));
+    assert!(nfa.delta_hat(word, ref_word));
 }
 
 #[test]
-fn delta_star_6() {
+fn delta_hat_6() {
     let nfa = NULA::<Max1>::new();
     let ref_word = "hey";
 
     let word = b"hye";
-    assert!(!nfa.delta_star(word, ref_word));
+    assert!(!nfa.delta_hat(word, ref_word));
 
     let word = b"heya";
-    assert!(nfa.delta_star(word, ref_word));
+    assert!(nfa.delta_hat(word, ref_word));
 
     let word = b"heyy";
-    assert!(nfa.delta_star(word, ref_word));
+    assert!(nfa.delta_hat(word, ref_word));
 
     let word = b"heyyy";
-    assert!(!nfa.delta_star(word, ref_word));
+    assert!(!nfa.delta_hat(word, ref_word));
 
     let word = b"h";
-    assert!(!nfa.delta_star(word, ref_word));
+    assert!(!nfa.delta_hat(word, ref_word));
 
     let word = b"heh";
-    assert!(nfa.delta_star(word, ref_word));
+    assert!(nfa.delta_hat(word, ref_word));
 }

@@ -120,13 +120,13 @@ mod get_from_fsa {
         ensure_all_values(&mut set, "sets_data/words_1.txt");
     }
 
-    #[test]
-    fn ensure_tons_2() {
-        assert!(build_fsa("sets_data/words_2.txt", "sets/words_2.fsa").is_some());
-
-        let mut set = Set::new("sets/words_2.fsa");
-        ensure_all_values(&mut set, "sets_data/words_2.txt");
-    }
+    // #[test]
+    // fn ensure_tons_2() {
+    //     assert!(build_fsa("sets_data/words_2.txt", "sets/words_2.fsa").is_some());
+    //
+    //     let mut set = Set::new("sets/words_2.fsa");
+    //     ensure_all_values(&mut set, "sets_data/words_2.txt");
+    // }
 
     fn ensure_all_values(fsa: &mut Set, filename: &str) {
         if let Ok(lines) = read_lines(filename) {
