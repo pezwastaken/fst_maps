@@ -2,6 +2,7 @@ use bincode::{Decode, Encode, error::EncodeError};
 
 use crate::{
     automaton::{AutomatonState, WithAddress},
+    encoded_states::CompressedStateTag,
     error::MyResult,
     fst_state::TransitionOutput,
     raw_fsa_state::InnerFsaState,
@@ -109,6 +110,7 @@ pub struct Acceptor<'a> {
     pub register: Register<FsaState>,
     writer: RawWriter<'a>,
     max_bytes_state: usize,
+    last_state_type: CompressedStateTag,
 }
 
 impl<'a> Acceptor<'a> {
@@ -127,6 +129,7 @@ impl<'a> Acceptor<'a> {
                 register: Register::new(),
                 writer: wr,
                 max_bytes_state: 0,
+                last_state_type: CompressedStateTag::NotAvailableTag,
             }
         } else {
             panic!("couldn't create a writer to the given file");
@@ -213,6 +216,8 @@ impl<'a> Acceptor<'a> {
                 Err(e) => panic!("error during add to register: {e:?}"),
             }
         }
+        // let current_state = &self.states[state_index];
+        // self.update_last_state_tag(current_state);
     }
 
     fn register_contains_equivalent(&self, state_index: usize) -> Option<usize> {
@@ -283,6 +288,8 @@ impl<'a> Acceptor<'a> {
             Err(e) => Err(e.into()),
         }
     }
+
+    fn update_last_state_tag(&mut self, current_state: &FsaState) {}
 
     pub fn state_has_children(&self, state_index: usize) -> bool {
         return self.states[state_index].has_children();

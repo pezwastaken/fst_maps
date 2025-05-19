@@ -237,12 +237,15 @@ impl<'a> Transducer<'a> {
         Ok(address)
     }
 
+    //FIX: Completely broken because of the new compressed states that do not support output
+    //symbols
+    //
     ///Writes the given FstState and then its length (in bytes).
     ///Returns the address to the start of the state len.
     pub fn persist_state(&mut self, i: usize) -> Result<(), EncodeError> {
         let state = &self.temp_states[i];
 
-        let _ = self.writer.write_state::<FstState>(state)?;
+        let _ = self.writer.write_state::<FstState>(state, true)?;
 
         //this is the address that is to be returned
         Ok(())
@@ -251,7 +254,7 @@ impl<'a> Transducer<'a> {
     pub fn persist_initial_state(&mut self) -> MyResult<()> {
         let state = &self.temp_states[0];
 
-        let wrote = self.writer.write_state::<FstState>(&state)?;
+        let wrote = self.writer.write_state::<FstState>(&state, true)?;
 
         //this is the address that is to be returned
         //let total_written_bytes = self.writer.get_written_bytes();

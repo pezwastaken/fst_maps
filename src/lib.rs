@@ -7,6 +7,7 @@ mod automaton_decoder;
 mod bit_vector;
 #[path = "levenshtein/dula.rs"]
 mod dula;
+mod encoded_states;
 mod error;
 mod fsa;
 mod fsa_builder;

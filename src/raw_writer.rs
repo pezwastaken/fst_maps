@@ -5,6 +5,11 @@ use std::io::{self, BufWriter, Write};
 use bincode::Encode;
 use bincode::error::EncodeError;
 
+use crate::automaton::AutomatonState;
+use crate::encoded_states::CompressedFsaState;
+
+///These are the states that are actually written to file
+
 #[derive(Debug)]
 pub struct RawWriter<'a> {
     inner_writer: BufWriter<File>,
@@ -27,12 +32,19 @@ impl<'a> RawWriter<'a> {
         self.written_bytes
     }
 
-    pub fn write_state<T>(&mut self, state: &T) -> Result<usize, EncodeError>
+    pub fn write_state<T>(
+        &mut self,
+        state: &T,
+        is_next_state_multi: bool,
+    ) -> Result<usize, EncodeError>
     where
         T: Encode,
+        T: AutomatonState,
     {
+        let compressed_state = CompressedFsaState::new_from_fsa_state(state, is_next_state_multi);
+
         let wrote = bincode::encode_into_std_write(
-            &state,
+            &compressed_state,
             &mut self.inner_writer,
             bincode::config::standard(),
         );
