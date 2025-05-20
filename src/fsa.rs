@@ -194,11 +194,20 @@ impl<'a> Acceptor<'a> {
 
         //merge states added by previous add_suffix_to_fsa that are equivalent to the ones in the register
         if let Some(state_to_merge_with) = self.register_contains_equivalent(child_index) {
+            let state_to_merge_with_index = state_to_merge_with.get_address();
+
+            let state_to_merge_with_tag = CompressedStateTag::get_tag_from_state(
+                state_to_merge_with,
+                self.writer.get_written_bytes(),
+            );
+
             //now get a mutable reference to the state who's child is to be merged
             let current_state = &mut self.states[state_index];
 
             //merge last child
-            current_state.merge_with(state_to_merge_with);
+            current_state.merge_with(state_to_merge_with_index);
+
+            self.last_state_type = state_to_merge_with_tag;
 
             self.states.pop();
         } else {
@@ -220,7 +229,7 @@ impl<'a> Acceptor<'a> {
         // self.update_last_state_tag(current_state);
     }
 
-    fn register_contains_equivalent(&self, state_index: usize) -> Option<usize> {
+    fn register_contains_equivalent(&self, state_index: usize) -> Option<&FsaState> {
         let state = &self.states[state_index];
 
         self.register.get_equivalent(state)

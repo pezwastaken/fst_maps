@@ -1,10 +1,14 @@
 use bincode::{Decode, Encode};
 
-use crate::automaton::AutomatonState;
+use crate::automaton::{AutomatonState, WithAddress};
 
 ///These are the actual types of states that can be written to file.
 
 ///transition on character
+#[derive(Debug, Clone, Encode, Decode)]
+///u8 is padding to have the same size as `Basic(u8)`
+pub struct NoTransitions(u8);
+
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct Basic(u8);
 
@@ -16,32 +20,49 @@ pub struct BasicWithNext(u8, usize);
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct MultiTransition(Vec<(u8, usize)>);
 
-impl Basic {
-    fn new(c: u8) -> Self {
-        Basic(c)
-    }
-}
+const _: () = assert!(
+    size_of::<NoTransitions>() == size_of::<Basic>(),
+    "size of NoTransitions must be equal to that of Basic"
+);
 
-impl BasicWithNext {
-    fn new(c: u8, to_addr: usize) -> Self {
-        BasicWithNext(c, to_addr)
-    }
-}
-
-impl MultiTransition {
-    fn new(vec: Vec<(u8, usize)>) -> Self {
-        MultiTransition(vec)
-    }
-}
+// impl NoTransitions {
+//     fn new() -> Self {
+//         NoTransitions(0)
+//     }
+// }
+//
+// impl Basic {
+//     fn new(c: u8) -> Self {
+//         Basic(c)
+//     }
+// }
+//
+// impl BasicWithNext {
+//     fn new(c: u8, to_addr: usize) -> Self {
+//         BasicWithNext(c, to_addr)
+//     }
+// }
+//
+// impl MultiTransition {
+//     fn new(vec: Vec<(u8, usize)>) -> Self {
+//         MultiTransition(vec)
+//     }
+// }
 
 #[derive(Debug, Clone, Encode, Decode)]
 pub enum CompressedFsaState {
+    NoTransitionsState(NoTransitions, bool),
     BasicState(Basic, bool),
     BasicWithNextState(BasicWithNext, bool),
     MultiTransitionState(MultiTransition, bool),
 }
 
 impl CompressedFsaState {
+    #[inline(always)]
+    fn new_no_trans(is_final: bool) -> Self {
+        CompressedFsaState::NoTransitionsState(NoTransitions(0), is_final)
+    }
+
     #[inline(always)]
     fn new_basic(c: u8, is_final: bool) -> Self {
         CompressedFsaState::BasicState(Basic(c), is_final)
@@ -57,7 +78,10 @@ impl CompressedFsaState {
         CompressedFsaState::MultiTransitionState(MultiTransition(vec), is_final)
     }
 
-    pub fn new_from_fsa_state<T: AutomatonState>(state: &T, is_next_state_multi: bool) -> Self {
+    pub fn new_from_fsa_state<T: AutomatonState>(
+        state: &T,
+        next_state_tag: CompressedStateTag,
+    ) -> Self {
         let is_final = state.is_final();
 
         match state.get_transitions() {
@@ -78,9 +102,28 @@ impl CompressedFsaState {
 
 #[derive(Debug)]
 pub enum CompressedStateTag {
+    NoTransTag,
     BasicTag,
     BasicWithNextStateTag,
     MultiTransitionTag,
-    LastTag,
     NotAvailableTag,
+}
+
+impl CompressedStateTag {
+    pub fn get_tag_from_state<T: AutomatonState + WithAddress>(
+        state: &T,
+        last_written_addr: usize,
+    ) -> Self {
+        match state.get_transitions() {
+            [] => Self::NoTransTag,
+            [(_, _)] => {
+                if state.get_address() == last_written_addr {
+                    Self::BasicTag
+                } else {
+                    Self::BasicWithNextStateTag
+                }
+            }
+            [_, _, ..] => Self::MultiTransitionTag,
+        }
+    }
 }

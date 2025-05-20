@@ -1,4 +1,7 @@
-use crate::automaton::{AutomatonState, WithAddress};
+use crate::{
+    automaton::{AutomatonState, WithAddress},
+    encoded_states::CompressedStateTag,
+};
 
 //must always be a power of 2
 pub const REGISTER_CAPACITY: u64 = 1543;
@@ -40,14 +43,13 @@ where
 
     ///Check whether this bucket contains an equivalent state.
     ///If so return its address
-    fn contains_equivalent(&self, state: &T) -> Option<usize> {
+    fn contains_equivalent(&self, state: &T) -> Option<&T> {
         self.elements
             .iter()
             .filter_map(|x| x.as_ref())
             .find(|elem| {
                 return state.eq(*elem);
             })
-            .map(|state| state.get_address())
     }
 }
 
@@ -80,7 +82,7 @@ where
     }
 
     #[inline]
-    pub fn get_equivalent(&self, state: &T) -> Option<usize> {
+    pub fn get_equivalent(&self, state: &T) -> Option<&T> {
         let bucket_address = self.hash(state) % REGISTER_CAPACITY;
         let bucket = &self.buckets[bucket_address as usize];
         bucket.contains_equivalent(state)

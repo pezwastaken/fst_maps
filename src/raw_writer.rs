@@ -32,16 +32,12 @@ impl<'a> RawWriter<'a> {
         self.written_bytes
     }
 
-    pub fn write_state<T>(
-        &mut self,
-        state: &T,
-        is_next_state_multi: bool,
-    ) -> Result<usize, EncodeError>
+    pub fn write_state<T>(&mut self, state: &T) -> Result<usize, EncodeError>
     where
         T: Encode,
         T: AutomatonState,
     {
-        let compressed_state = CompressedFsaState::new_from_fsa_state(state, is_next_state_multi);
+        let compressed_state = CompressedFsaState::new_from_fsa_state(state);
 
         let wrote = bincode::encode_into_std_write(
             &compressed_state,

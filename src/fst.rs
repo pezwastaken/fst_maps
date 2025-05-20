@@ -1,7 +1,7 @@
 use bincode::error::EncodeError;
 
 use crate::{
-    automaton::{Automaton, AutomatonState},
+    automaton::{Automaton, AutomatonState, WithAddress},
     error::MyResult,
     fst_state::{FstState, common_prefix_index},
     raw_writer::RawWriter,
@@ -210,7 +210,9 @@ impl<'a> Transducer<'a> {
     fn register_contains_equivalent(&self, state_index: usize) -> Option<usize> {
         let state = &self.temp_states[state_index];
 
-        self.register.get_equivalent(state)
+        self.register
+            .get_equivalent(state)
+            .map(|state| state.get_address())
     }
 
     fn add_to_register(&mut self, i: usize) -> Result<usize, EncodeError> {
