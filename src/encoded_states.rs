@@ -2,6 +2,8 @@ use bincode::{Decode, Encode};
 
 use crate::automaton::{AutomatonState, WithAddress};
 
+const BASIC_STATE_SIZE: usize = 3;
+
 ///These are the actual types of states that can be written to file.
 
 ///transition on character
@@ -59,6 +61,43 @@ pub enum CompressedFsaState {
 
 impl CompressedFsaState {
     #[inline(always)]
+    pub fn delta(&self, c: u8, current_addr: usize) -> Option<usize> {
+        match self {
+            Self::NoTransitionsState(_, _) => None,
+            Self::BasicState(Basic(on_char), _) => {
+                if c == *on_char {
+                    Some(current_addr - BASIC_STATE_SIZE)
+                } else {
+                    None
+                }
+            }
+            Self::BasicWithNextState(BasicWithNext(on_char, to_state), _) => {
+                if c == *on_char {
+                    Some(*to_state)
+                } else {
+                    None
+                }
+            }
+            Self::MultiTransitionState(MultiTransition(vec), _) => {
+                let transition = vec
+                    .iter()
+                    .find(|(transition_char, _)| *transition_char == c);
+
+                //return Some(transition?.1);
+                return transition.map(|(_, next_state)| *next_state);
+            }
+        }
+    }
+
+    #[inline(always)]
+    pub fn is_final(&self) -> bool {
+        match self {
+            CompressedFsaState::NoTransitionsState(_, _) => true,
+            _ => false,
+        }
+    }
+
+    #[inline(always)]
     fn new_no_trans(is_final: bool) -> Self {
         CompressedFsaState::NoTransitionsState(NoTransitions(0), is_final)
     }
@@ -78,13 +117,9 @@ impl CompressedFsaState {
         CompressedFsaState::MultiTransitionState(MultiTransition(vec), is_final)
     }
 
-    //
-    //FIX: the tag should depend on whether the `to_state` is equal to next_addr
-    //, where next_addr is the last written address.
-    //If they are equal then it's a linear kind of path (basic shall be chosen)
     pub fn new_from_fsa_state<T: AutomatonState>(
         state: &T,
-        next_state_addr: usize,
+        was_previous_merged: bool,
         next_state_tag: CompressedStateTag,
     ) -> Self {
         let is_final = state.is_final();
@@ -93,29 +128,99 @@ impl CompressedFsaState {
             [] => {
                 assert_eq!(next_state_tag, CompressedStateTag::NotAvailableTag);
                 assert!(is_final);
-                Self::NoTransitionsState(NoTransitions(0), is_final)
+                Self::new_no_trans(is_final)
             }
             [transition] => match next_state_tag {
                 CompressedStateTag::NoTransTag | CompressedStateTag::BasicTag => {
-                    let (on_char, to_state) = transition;
-
-                    if *to_state == next_state_addr {
+                    //if linear path => basic is enough
+                    if !was_previous_merged {
+                        let (on_char, _) = transition;
                         Self::new_basic(*on_char, is_final)
                     } else {
+                        let (on_char, to_state) = transition;
                         Self::new_basic_with_next(*on_char, *to_state, is_final)
                     }
                 }
                 _ => {
-                    assert!(!is_final);
                     let (on_char, to_state) = transition;
                     Self::new_basic_with_next(*on_char, *to_state, is_final)
                 }
             },
-            //NOTE: don't like this .to_vec()
+            //NOTE: don't like this .to_vec(), rc during construction maybe?
             transitions => Self::new_multi_transition(transitions.to_vec(), is_final),
         }
     }
 }
+
+// impl AutomatonState for CompressedFsaState {
+//     fn delta(&self, c: u8, current_addr: usize) -> Option<usize> {
+//         match self {
+//             Self::NoTransitionsState(_, _) => None,
+//             Self::BasicState(Basic(on_char), _) => {
+//                 if c == *on_char {
+//                     Some(current_addr + BASIC_STATE_SIZE)
+//                 } else {
+//                     None
+//                 }
+//             }
+//             Self::BasicWithNextState(BasicWithNext(on_char, to_state), _) => {
+//                 if c == *on_char {
+//                     Some(*to_state)
+//                 } else {
+//                     None
+//                 }
+//             }
+//             Self::MultiTransitionState(MultiTransition(vec), _) => {
+//                 let transition = vec
+//                     .iter()
+//                     .find(|(transition_char, _)| *transition_char == c);
+//
+//                 //return Some(transition?.1);
+//                 return transition.map(|(_, next_state)| *next_state);
+//             }
+//         }
+//     }
+//
+//     fn delta_with_output(&self, _: u8) -> Option<(usize, &crate::fst_state::TransitionOutput)> {
+//         unreachable!("fsa transitions don't have output associated with them!");
+//     }
+//
+//     fn has_children(&self) -> bool {
+//         match self {
+//             CompressedFsaState::NoTransitionsState(_, _) => false,
+//             _ => true,
+//         }
+//     }
+//
+//     fn last_child(&self) -> Option<usize> {
+//         match self {
+//             CompressedFsaState::NoTransitionsState(_, _) => None,
+//             CompressedFsaState::BasicState(basic, _) => todo!(),
+//             CompressedFsaState::BasicWithNextState(basic_with_next, _) => todo!(),
+//             CompressedFsaState::MultiTransitionState(multi_transition, _) => todo!(),
+//         }
+//     }
+//
+//     fn add_transition(&mut self, y: u8, new_state_address: usize) {
+//         todo!()
+//     }
+//
+//     fn clear_state(&mut self) {
+//         todo!()
+//     }
+//
+//     fn is_final(&self) -> bool {
+//         todo!()
+//     }
+//
+//     fn get_transitions(&self) -> &[(u8, usize)] {
+//         todo!()
+//     }
+//
+//     fn get_outputs(&self) -> Option<&[crate::fst_state::TransitionOutput]> {
+//         todo!()
+//     }
+// }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum CompressedStateTag {

@@ -5,7 +5,6 @@ use std::fs::File;
 pub struct AutomatonDecoder {
     mmap: Option<Mmap>,
     file: File,
-    // prev_addr: usize,
     max_state_len: usize,
 }
 
@@ -86,7 +85,8 @@ impl AutomatonDecoder {
         }
     }
 
-    pub fn read_first_state<T>(&mut self) -> Option<T>
+    ///Returns the first state and its address
+    pub fn read_first_state<T>(&mut self) -> Option<(T, usize)>
     where
         T: Decode<()>,
     {
@@ -117,7 +117,7 @@ impl AutomatonDecoder {
             println!("offset is 0 in read state at addr");
         }
 
-        res
+        res.map(|v| (v, offset))
     }
 
     ///decodes an fst state given its address by first deserializing its length (fixed 8 bytes

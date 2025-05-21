@@ -32,7 +32,8 @@ impl FuzzySet {
 
         let mut accepted_str: Vec<u8> = Vec::new();
 
-        let Some(current_state) = self.decoder.read_first_state::<InnerFsaState>() else {
+        let Some((current_state, at_addr)) = self.decoder.read_first_state::<InnerFsaState>()
+        else {
             panic!("couldn't decode first state given mmapped file");
         };
 

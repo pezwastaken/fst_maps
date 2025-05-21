@@ -53,6 +53,8 @@ impl WithAddress for FsaState {
 ///Implement AutomatonState trait for FsaState
 impl AutomatonState for FsaState {
     #[inline]
+    //FIX: unused param
+    //this impl block should be removed
     fn delta(&self, c: u8) -> Option<usize> {
         self.inner.delta(c)
     }
@@ -109,8 +111,12 @@ pub struct Acceptor<'a> {
     pub last_str_len: usize,
     pub register: Register<FsaState>,
     writer: RawWriter<'a>,
+
     max_bytes_state: usize,
+
+    //used for compression
     prev_state_tag: CompressedStateTag,
+    was_prev_state_merged: bool,
 }
 
 impl<'a> Acceptor<'a> {
@@ -129,7 +135,9 @@ impl<'a> Acceptor<'a> {
                 register: Register::new(),
                 writer: wr,
                 max_bytes_state: 0,
+
                 prev_state_tag: CompressedStateTag::NotAvailableTag,
+                was_prev_state_merged: false,
             }
         } else {
             panic!("couldn't create a writer to the given file");
@@ -208,6 +216,7 @@ impl<'a> Acceptor<'a> {
             current_state.merge_with(state_to_merge_with_index);
 
             self.update_last_state_tag(state_to_merge_with_tag);
+            self.was_prev_state_merged = true;
 
             self.states.pop();
         } else {
@@ -220,6 +229,7 @@ impl<'a> Acceptor<'a> {
                     if !ok {
                         unreachable!();
                     }
+                    self.was_prev_state_merged = false;
                 }
 
                 Err(e) => panic!("error during add to register: {e:?}"),
@@ -262,20 +272,23 @@ impl<'a> Acceptor<'a> {
     pub fn persist_state(&mut self, i: usize) -> Result<(), EncodeError> {
         let state = &self.states[i];
 
-        let prev_addr = self.writer.get_written_bytes();
-        let compressed_state =
-            CompressedFsaState::new_from_fsa_state(state, prev_addr, self.prev_state_tag.clone());
+        let compressed_state = CompressedFsaState::new_from_fsa_state(
+            state,
+            self.was_prev_state_merged,
+            self.prev_state_tag.clone(),
+        );
 
         println!("persisting state:");
         dbg!(&state);
-        dbg!(&prev_addr);
-        dbg!(&self.prev_state_tag);
+        dbg!(self.was_prev_state_merged);
         dbg!(&compressed_state);
-        println!("------------\n");
 
         let wrote = self
             .writer
             .write_state::<CompressedFsaState>(&compressed_state)?;
+
+        dbg!(wrote);
+        println!("------------\n");
 
         if wrote > self.max_bytes_state {
             self.max_bytes_state = wrote;
@@ -290,9 +303,11 @@ impl<'a> Acceptor<'a> {
     pub fn persist_initial_state(&mut self) -> MyResult<()> {
         let state = &self.states[0];
 
-        let prev_addr = self.writer.get_written_bytes();
-        let compressed_state =
-            CompressedFsaState::new_from_fsa_state(state, prev_addr, self.prev_state_tag.clone());
+        let compressed_state = CompressedFsaState::new_from_fsa_state(
+            state,
+            self.was_prev_state_merged,
+            self.prev_state_tag.clone(),
+        );
 
         let wrote = self
             .writer
@@ -325,6 +340,7 @@ impl<'a> Acceptor<'a> {
     }
 
     pub fn reset_prev_state_tag(&mut self) {
+        self.was_prev_state_merged = false;
         self.prev_state_tag = CompressedStateTag::NotAvailableTag;
     }
 

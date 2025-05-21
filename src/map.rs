@@ -19,7 +19,7 @@ impl Map {
     }
 
     fn delta_hat(&mut self, input_tape: &[u8]) -> Option<Vec<u8>> {
-        let Some(mut current_state) = self.decoder.read_first_state::<FstState>() else {
+        let Some((mut current_state, at_addr)) = self.decoder.read_first_state::<FstState>() else {
             panic!("couldn't decode first state given mmapped file");
         };
 

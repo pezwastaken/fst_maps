@@ -1,15 +1,17 @@
-use crate::{
-    automaton::AutomatonState, automaton_decoder::AutomatonDecoder, raw_fsa_state::InnerFsaState,
-};
+use crate::{automaton_decoder::AutomatonDecoder, encoded_states::CompressedFsaState};
 
 pub struct Set {
     decoder: AutomatonDecoder,
+    current_addr: usize,
 }
 
 impl Set {
     pub fn new(fsa_file: &str) -> Self {
         match AutomatonDecoder::new(fsa_file) {
-            Ok(tmp) => Self { decoder: tmp },
+            Ok(tmp) => Self {
+                decoder: tmp,
+                current_addr: 0,
+            },
             Err(e) => panic!("error while creating automaton decoder {e:?}"),
         }
     }
@@ -19,19 +21,31 @@ impl Set {
     }
 
     fn delta_hat(&mut self, input_tape: &[u8]) -> bool {
-        let Some(mut current_state) = self.decoder.read_first_state::<InnerFsaState>() else {
+        self.current_addr = 0;
+
+        let Some((mut current_state, at_addr)) =
+            self.decoder.read_first_state::<CompressedFsaState>()
+        else {
             panic!("couldn't decode first state given mmapped file");
         };
 
+        dbg!(&current_state);
+        self.current_addr = at_addr;
+
         for c in input_tape {
-            let Some(next_state_addr) = current_state.delta(*c) else {
+            let Some(next_state_addr) = current_state.delta(*c, self.current_addr) else {
                 return false;
             };
+
+            dbg!(next_state_addr);
 
             match self.decoder.read_state_at_addr(next_state_addr as usize) {
                 Some(state) => current_state = state,
                 None => return false,
             }
+
+            dbg!(&current_state);
+            self.current_addr = next_state_addr;
         }
 
         current_state.is_final()
