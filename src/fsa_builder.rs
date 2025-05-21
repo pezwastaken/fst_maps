@@ -10,6 +10,8 @@ pub fn build_fsa<'a>(filename: &str, output_to: &'a str) -> Option<Acceptor<'a>>
 
     if let Ok(lines) = read_lines(filename) {
         for line in lines.map_while(Result::ok) {
+            fsa.reset_prev_state_tag();
+
             let bytes = &line.as_bytes();
 
             assert_ne!(bytes.len(), 0);

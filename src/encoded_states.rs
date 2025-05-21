@@ -78,29 +78,46 @@ impl CompressedFsaState {
         CompressedFsaState::MultiTransitionState(MultiTransition(vec), is_final)
     }
 
+    //
+    //FIX: the tag should depend on whether the `to_state` is equal to next_addr
+    //, where next_addr is the last written address.
+    //If they are equal then it's a linear kind of path (basic shall be chosen)
     pub fn new_from_fsa_state<T: AutomatonState>(
         state: &T,
+        next_state_addr: usize,
         next_state_tag: CompressedStateTag,
     ) -> Self {
         let is_final = state.is_final();
 
         match state.get_transitions() {
-            [transition] => {
-                if !is_next_state_multi {
-                    let (on_char, _) = transition;
-                    Self::new_basic(*on_char, is_final)
-                } else {
+            [] => {
+                assert_eq!(next_state_tag, CompressedStateTag::NotAvailableTag);
+                assert!(is_final);
+                Self::NoTransitionsState(NoTransitions(0), is_final)
+            }
+            [transition] => match next_state_tag {
+                CompressedStateTag::NoTransTag | CompressedStateTag::BasicTag => {
+                    let (on_char, to_state) = transition;
+
+                    if *to_state == next_state_addr {
+                        Self::new_basic(*on_char, is_final)
+                    } else {
+                        Self::new_basic_with_next(*on_char, *to_state, is_final)
+                    }
+                }
+                _ => {
+                    assert!(!is_final);
                     let (on_char, to_state) = transition;
                     Self::new_basic_with_next(*on_char, *to_state, is_final)
                 }
-            }
+            },
             //NOTE: don't like this .to_vec()
             transitions => Self::new_multi_transition(transitions.to_vec(), is_final),
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum CompressedStateTag {
     NoTransTag,
     BasicTag,
@@ -126,4 +143,23 @@ impl CompressedStateTag {
             [_, _, ..] => Self::MultiTransitionTag,
         }
     }
+}
+
+#[test]
+fn compressed_state_size() {
+    let mut slice = [0u8; 10];
+
+    let state = CompressedFsaState::new_no_trans(true);
+
+    let length =
+        bincode::encode_into_slice(&state, &mut slice, bincode::config::standard()).unwrap();
+
+    assert_eq!(length, 3);
+
+    let state = CompressedFsaState::new_basic(255, true);
+
+    let length =
+        bincode::encode_into_slice(&state, &mut slice, bincode::config::standard()).unwrap();
+
+    assert_eq!(length, 3);
 }

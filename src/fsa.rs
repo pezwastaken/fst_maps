@@ -2,7 +2,7 @@ use bincode::{Decode, Encode, error::EncodeError};
 
 use crate::{
     automaton::{AutomatonState, WithAddress},
-    encoded_states::CompressedStateTag,
+    encoded_states::{CompressedFsaState, CompressedStateTag},
     error::MyResult,
     fst_state::TransitionOutput,
     raw_fsa_state::InnerFsaState,
@@ -110,7 +110,7 @@ pub struct Acceptor<'a> {
     pub register: Register<FsaState>,
     writer: RawWriter<'a>,
     max_bytes_state: usize,
-    last_state_type: CompressedStateTag,
+    prev_state_tag: CompressedStateTag,
 }
 
 impl<'a> Acceptor<'a> {
@@ -129,7 +129,7 @@ impl<'a> Acceptor<'a> {
                 register: Register::new(),
                 writer: wr,
                 max_bytes_state: 0,
-                last_state_type: CompressedStateTag::NotAvailableTag,
+                prev_state_tag: CompressedStateTag::NotAvailableTag,
             }
         } else {
             panic!("couldn't create a writer to the given file");
@@ -207,7 +207,7 @@ impl<'a> Acceptor<'a> {
             //merge last child
             current_state.merge_with(state_to_merge_with_index);
 
-            self.last_state_type = state_to_merge_with_tag;
+            self.update_last_state_tag(state_to_merge_with_tag);
 
             self.states.pop();
         } else {
@@ -262,11 +262,27 @@ impl<'a> Acceptor<'a> {
     pub fn persist_state(&mut self, i: usize) -> Result<(), EncodeError> {
         let state = &self.states[i];
 
-        let wrote = self.writer.write_state::<InnerFsaState>(&state.inner)?;
+        let prev_addr = self.writer.get_written_bytes();
+        let compressed_state =
+            CompressedFsaState::new_from_fsa_state(state, prev_addr, self.prev_state_tag.clone());
+
+        println!("persisting state:");
+        dbg!(&state);
+        dbg!(&prev_addr);
+        dbg!(&self.prev_state_tag);
+        dbg!(&compressed_state);
+        println!("------------\n");
+
+        let wrote = self
+            .writer
+            .write_state::<CompressedFsaState>(&compressed_state)?;
 
         if wrote > self.max_bytes_state {
             self.max_bytes_state = wrote;
         }
+
+        let tag = CompressedStateTag::get_tag_from_state(state, state.get_address());
+        self.update_last_state_tag(tag);
 
         Ok(())
     }
@@ -274,7 +290,13 @@ impl<'a> Acceptor<'a> {
     pub fn persist_initial_state(&mut self) -> MyResult<()> {
         let state = &self.states[0];
 
-        let wrote = self.writer.write_state::<InnerFsaState>(&state.inner)?;
+        let prev_addr = self.writer.get_written_bytes();
+        let compressed_state =
+            CompressedFsaState::new_from_fsa_state(state, prev_addr, self.prev_state_tag.clone());
+
+        let wrote = self
+            .writer
+            .write_state::<CompressedFsaState>(&compressed_state)?;
 
         if wrote > self.max_bytes_state {
             self.max_bytes_state = wrote;
@@ -298,7 +320,13 @@ impl<'a> Acceptor<'a> {
         }
     }
 
-    fn update_last_state_tag(&mut self, current_state: &FsaState) {}
+    fn update_last_state_tag(&mut self, tag: CompressedStateTag) {
+        self.prev_state_tag = tag;
+    }
+
+    pub fn reset_prev_state_tag(&mut self) {
+        self.prev_state_tag = CompressedStateTag::NotAvailableTag;
+    }
 
     pub fn state_has_children(&self, state_index: usize) -> bool {
         return self.states[state_index].has_children();

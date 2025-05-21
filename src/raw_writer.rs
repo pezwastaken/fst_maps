@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::fs::File;
 
 use std::io::{self, BufWriter, Write};
@@ -6,7 +7,7 @@ use bincode::Encode;
 use bincode::error::EncodeError;
 
 use crate::automaton::AutomatonState;
-use crate::encoded_states::CompressedFsaState;
+use crate::encoded_states::{CompressedFsaState, CompressedStateTag};
 
 ///These are the states that are actually written to file
 
@@ -34,13 +35,10 @@ impl<'a> RawWriter<'a> {
 
     pub fn write_state<T>(&mut self, state: &T) -> Result<usize, EncodeError>
     where
-        T: Encode,
-        T: AutomatonState,
+        T: Encode + Debug,
     {
-        let compressed_state = CompressedFsaState::new_from_fsa_state(state);
-
         let wrote = bincode::encode_into_std_write(
-            &compressed_state,
+            &state,
             &mut self.inner_writer,
             bincode::config::standard(),
         );
