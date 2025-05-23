@@ -7,3 +7,10 @@ edition = "2024"
 memmap2 = "0.9.5"
 bincode = "2.0.1"
 array-init = "2.1.0"
+dhat = "0.3.3"
+
+[profile.release]
+debug = 1
+
+[features]
+dhat-heap = []
