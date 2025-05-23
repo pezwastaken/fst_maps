@@ -22,9 +22,12 @@ mod map;
 mod nula;
 #[path = "inner/raw_fsa_state.rs"]
 mod raw_fsa_state;
+#[path = "inner/raw_fst_state.rs"]
+mod raw_fst_state;
 mod raw_writer;
 mod register;
 mod set;
+mod utils;
 
 #[allow(unused)]
 #[cfg(test)]

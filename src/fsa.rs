@@ -3,8 +3,8 @@ use bincode::{Decode, Encode, error::EncodeError};
 use crate::{
     automaton::{AutomatonState, WithAddress},
     error::MyResult,
-    fst_state::TransitionOutput,
     raw_fsa_state::InnerFsaState,
+    raw_fst_state::TransitionOutput,
     raw_writer::RawWriter,
     register::Register,
 };

@@ -101,8 +101,8 @@ where
         //working with an fst
         if let Some(outputs) = state.get_outputs() {
             for o in outputs.iter() {
-                let value = o.get_value_as_deref();
-                match value {
+                // let value = o.get_value_as_deref();
+                match o {
                     Some(seq) => {
                         for byte in seq {
                             h = (h ^ (*byte as u64)).wrapping_mul(FNV_PRIME);

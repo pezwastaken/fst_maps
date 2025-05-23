@@ -1,7 +1,7 @@
 use crate::automaton::AutomatonState;
 use crate::fst::FstError;
 use crate::fst::Transducer;
-use crate::fst_state::common_prefix_index;
+use crate::utils::common_prefix_index;
 
 use core::result::Result;
 use std::fs::File;
@@ -103,55 +103,55 @@ fn parse_line(line: &[u8]) -> Option<(&[u8], &[u8])> {
     Some((key, value))
 }
 
-pub fn dump_graph(fst: &Transducer<'_>, file_path: &str) -> io::Result<()> {
-    println!("states in dump graph");
-    //dbg!(&fst.temp_states[0]);
-    //dbg!(&fst.states);
-
-    let mut file = File::create(file_path)?;
-
-    file.write(b"digraph DFA {")?;
-    file.write(b"    {0} [shape=circle, color=blue, label=\"start\"];")?;
-
-    //mark the accepting states
-    for state in fst.states.iter() {
-        if state.is_final {
-            let s = format!("    {} [shape=doublecircle, color=green];", state.address);
-            file.write(s.as_bytes())?;
-        }
-    }
-
-    //add transitions
-    for state in fst.states.iter() {
-        let state_transitions = &state.transitions;
-        let state_outputs = &state.outputs;
-
-        assert!(state_transitions.len() >= state_outputs.len());
-        for (transition, output) in state_transitions.iter().zip(state_outputs) {
-            let (on_char, to_state) = transition;
-
-            let label: String;
-            if let Some(value) = output.get_value_as_deref() {
-                label = format!(
-                    "{}: {}",
-                    *on_char as char,
-                    std::str::from_utf8(value).unwrap()
-                );
-            } else {
-                label = format!("{}", *on_char as char);
-            }
-            let s = format!(
-                "    {} -> {} [label=\"{}\"];",
-                state.address, *to_state, label
-            );
-            file.write(s.as_bytes())?;
-        }
-    }
-
-    file.write(b"}")?;
-
-    Ok(())
-}
+// pub fn dump_graph(fst: &Transducer<'_>, file_path: &str) -> io::Result<()> {
+//     println!("states in dump graph");
+//     //dbg!(&fst.temp_states[0]);
+//     //dbg!(&fst.states);
+//
+//     let mut file = File::create(file_path)?;
+//
+//     file.write(b"digraph DFA {")?;
+//     file.write(b"    {0} [shape=circle, color=blue, label=\"start\"];")?;
+//
+//     //mark the accepting states
+//     for state in fst.states.iter() {
+//         if state.is_final() {
+//             let s = format!("    {} [shape=doublecircle, color=green];", state.address);
+//             file.write(s.as_bytes())?;
+//         }
+//     }
+//
+//     //add transitions
+//     for state in fst.states.iter() {
+//         let state_transitions = state.get_transitions();
+//         let state_outputs = state.get_outputs();
+//
+//         assert!(state_transitions.len() >= state_outputs.len());
+//         for (transition, output) in state_transitions.iter().zip(state_outputs) {
+//             let (on_char, to_state) = transition;
+//
+//             let label: String;
+//             if let Some(value) = output.get_value_as_deref() {
+//                 label = format!(
+//                     "{}: {}",
+//                     *on_char as char,
+//                     std::str::from_utf8(value).unwrap()
+//                 );
+//             } else {
+//                 label = format!("{}", *on_char as char);
+//             }
+//             let s = format!(
+//                 "    {} -> {} [label=\"{}\"];",
+//                 state.address, *to_state, label
+//             );
+//             file.write(s.as_bytes())?;
+//         }
+//     }
+//
+//     file.write(b"}")?;
+//
+//     Ok(())
+// }
 
 #[allow(unused)]
 #[cfg(test)]
@@ -166,7 +166,6 @@ mod fst_builder_tests {
     use crate::fst_state::FstState;
 
     use super::build_transducer_from_collection;
-    use super::dump_graph;
     //use super::dump_graph;
     use super::parse_line;
     use super::read_lines;

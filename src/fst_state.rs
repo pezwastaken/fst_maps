@@ -1,61 +1,8 @@
-use crate::automaton::{AutomatonState, WithAddress};
+use crate::{
+    automaton::{AutomatonState, WithAddress},
+    raw_fst_state::{InnerFstState, TransitionOutput},
+};
 use bincode::{Decode, Encode};
-
-#[derive(Debug, PartialEq, Clone, Encode, Decode)]
-pub struct TransitionOutput {
-    value: Option<Vec<u8>>,
-}
-
-impl TransitionOutput {
-    pub fn new() -> Self {
-        TransitionOutput { value: None }
-    }
-
-    fn new_with_value(value: Vec<u8>) -> Self {
-        TransitionOutput { value: Some(value) }
-    }
-
-    pub fn has_value(&self) -> bool {
-        return self.value.is_some();
-    }
-
-    pub fn get_value_as_deref(&self) -> Option<&[u8]> {
-        return self.value.as_deref();
-    }
-
-    ///panics if value is None
-    pub fn get_value_unwrapped(&self) -> &[u8] {
-        return self.get_value_as_deref().unwrap();
-    }
-
-    ///panics if value is None
-    pub fn drain_value(&mut self, from: usize) -> Vec<u8> {
-        if self.has_value() {
-            let suffix: Vec<_> = self.value.as_mut().unwrap().drain(from..).collect();
-            return suffix;
-        } else {
-            panic!("drain value called on state with output = None");
-        }
-    }
-
-    pub fn set_value(&mut self, value: Option<Vec<u8>>) {
-        self.value = value;
-    }
-
-    pub fn set_value_from_slice(&mut self, value: &[u8]) {
-        self.value = Some(value.to_vec());
-    }
-
-    ///panics if value is None
-    pub fn prepend_slice(&mut self, new_prefix: &[u8]) {
-        let value = self.value.as_mut().unwrap();
-        value.splice(..0, new_prefix.iter().cloned());
-    }
-
-    pub fn take(&mut self) -> Option<Vec<u8>> {
-        return self.value.take();
-    }
-}
 
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct FstState {
@@ -64,68 +11,47 @@ pub struct FstState {
 
     //these two fields are "linked" together to model a transition of the transducer.
     //outputs[i] is the output associated to transition `i` of current state
-    pub transitions: Vec<(u8, usize)>,
-    pub outputs: Vec<TransitionOutput>,
-
-    pub is_final: bool,
+    inner: InnerFstState,
 }
 
 impl FstState {
-    pub fn new() -> Self {
+    pub fn new(addr: usize, f: bool) -> Self {
         FstState {
-            address: 0,
-            is_final: false,
-            transitions: Vec::new(),
-            outputs: Vec::new(),
+            address: addr,
+            inner: InnerFstState::new(f),
+            // is_final: false,
+            // transitions: Vec::new(),
+            // outputs: Vec::new(),
         }
     }
 
     pub fn set_last_transition_child(&mut self, to_state: usize) {
-        assert!(!self.transitions.is_empty());
-        self.transitions.last_mut().unwrap().1 = to_state;
+        self.inner.set_last_transition_child(to_state);
     }
 
     #[inline]
     pub fn merge_with(&mut self, other_state: usize) -> bool {
-        if let Some(transition) = self.transitions.last_mut() {
-            //field 1 is next state
-            transition.1 = other_state;
-            return true;
-        }
-
-        return false;
+        self.inner.merge_with(other_state)
     }
 
     #[inline]
-    pub fn get_last_output(&self) -> &TransitionOutput {
+    pub fn get_last_output(&self) -> Option<&[u8]> {
         //if let Some(out) = self.outputs.last() {
         //    return out.get_value_as_deref();
         //}
         //return None;
-        return self.outputs.last().expect("outputs should never be empty!");
+        // return self.outputs.last().expect("outputs should never be empty!");
+        self.inner.get_last_output()
     }
 
     //find common prefix between state last output and current str
     pub fn find_new_prefix_len(&self, current_str: &[u8]) -> usize {
-        //find common prefix between initial state last output and current str
-        if let Some(state_last_output) = self.get_last_output().get_value_as_deref() {
-            let prefix_index = common_prefix_index(current_str, state_last_output);
-
-            return prefix_index;
-        }
-        return 0;
+        self.inner.find_new_prefix_len(current_str)
     }
 
     #[inline]
     pub fn set_last_output(&mut self, output: &[u8]) {
-        assert_eq!(self.transitions.len(), self.outputs.len());
-
-        if let Some(last_output) = self.outputs.last_mut() {
-            *last_output = TransitionOutput::new_with_value(output.to_vec());
-        } else {
-            panic!("output vec is empty!");
-        }
-        assert_eq!(self.transitions.len(), self.outputs.len());
+        self.inner.set_last_output(output);
     }
 
     /*
@@ -134,112 +60,34 @@ impl FstState {
      */
     #[inline]
     pub fn truncate_last_output(&mut self, from: usize) -> Option<Vec<u8>> {
-        assert_eq!(self.transitions.len(), self.outputs.len());
-
-        //println!("called truncate_last_output on state: {:?}", self);
-
-        //println!("should truncate from char: {from}");
-
-        if let Some(last_output_edge) = self.outputs.last_mut() {
-            if last_output_edge.has_value() {
-                //truncate
-                let suffix: Vec<_> = last_output_edge.drain_value(from);
-                //println!("after truncating state is: {:?}", self);
-
-                if suffix.len() != 0 {
-                    return Some(suffix);
-                } else {
-                    return None;
-                }
-            }
-        } else {
-            panic!("called truncate last output on empty vec!");
-        }
-        assert_eq!(self.transitions.len(), self.outputs.len());
-        None
+        self.inner.truncate_last_output(from)
     }
 
     #[inline]
     pub fn clear_last_output(&mut self) -> Option<Vec<u8>> {
-        assert_eq!(self.transitions.len(), self.outputs.len());
-        if let Some(last_output_edge) = self.outputs.last_mut() {
-            //take out the old value (to then return it) and replace it with None
-            return last_output_edge.take();
-        } else {
-            panic!("output vec is empty!");
-        }
+        self.inner.clear_last_output()
     }
 
     //prepend new_prefix to all outputs
     pub fn propagate_new_prefix(&mut self, new_prefix: Option<&[u8]>) {
-        //nothing to prepend
-        if new_prefix == None {
-            return;
-        }
-
-        let new_prefix = new_prefix.as_deref().unwrap();
-        assert!(new_prefix.len() > 0);
-        assert_eq!(self.transitions.len(), self.outputs.len());
-
-        for out_edge in self.outputs.iter_mut() {
-            //if output edge has some value then we prepend new_prefix to it
-            if out_edge.has_value() {
-                out_edge.prepend_slice(new_prefix);
-            } else {
-                //replace entirely with new prefix is no edge has no value
-                out_edge.set_value_from_slice(new_prefix);
-            }
-        }
+        self.inner.propagate_new_prefix(new_prefix);
     }
 
     //prepend new_prefix to all outputs except the last one
     pub fn propagate_prefix_exc_last(&mut self, new_prefix: &Option<Vec<u8>>) {
-        //nothing to prepend
-        if *new_prefix == None {
-            return;
-        }
-
-        let new_prefix = new_prefix.as_deref().unwrap();
-        assert!(new_prefix.len() > 0);
-        assert_eq!(self.transitions.len(), self.outputs.len());
-
-        //skip the last outgoing edge
-        for out_edge in self.outputs.iter_mut().rev().skip(1) {
-            if out_edge.has_value() {
-                //if output edge has some value then we prepend new_prefix to it
-                out_edge.prepend_slice(new_prefix);
-            } else {
-                //if output edge is None then just copy the new prefix into it
-                out_edge.set_value_from_slice(new_prefix);
-            }
-        }
+        self.inner.propagate_prefix_exc_last(new_prefix);
     }
 
-    fn are_transitions_equal(&self, other_state: &Self) -> bool {
-        let self_transitions = &self.transitions;
-        let other_state_transitions = &other_state.transitions;
-
-        //actually check transitions
-        //compare char of transition 1 with char of transition 2
-        //same thing with destination states
-        let all_transitions_equal = self_transitions
-            .iter()
-            .zip(other_state_transitions)
-            .all(|((char1, state1), (char2, state2))| (*char1 == *char2) && (*state1 == *state2));
-
-        return all_transitions_equal;
+    fn are_transitions_equal(&self, other_state: &InnerFstState) -> bool {
+        self.inner.are_transitions_equal(other_state)
     }
 
-    fn are_outputs_equal(&self, other_state: &FstState) -> bool {
-        let self_outputs = &self.outputs;
-        let other_state_outputs = &other_state.outputs;
+    fn are_outputs_equal(&self, other_state: &InnerFstState) -> bool {
+        self.inner.are_outputs_equal(other_state)
+    }
 
-        let all_transitions_equal = self_outputs
-            .iter()
-            .zip(other_state_outputs)
-            .all(|(t1, t2)| t1.eq(t2));
-
-        return all_transitions_equal;
+    fn add_output(&mut self) {
+        self.inner.add_output();
     }
 }
 
@@ -247,7 +95,7 @@ impl AutomatonState for FstState {
     #[inline]
     fn delta(&self, c: u8) -> Option<usize> {
         let transition = self
-            .transitions
+            .get_transitions()
             .iter()
             .find(|(transition_char, _)| *transition_char == c);
 
@@ -256,7 +104,7 @@ impl AutomatonState for FstState {
 
     fn delta_with_output(&self, c: u8) -> Option<(usize, &TransitionOutput)> {
         let transition = self
-            .transitions
+            .get_transitions()
             .iter()
             .enumerate()
             .find(|(_, (transition_char, _))| *transition_char == c)
@@ -268,7 +116,7 @@ impl AutomatonState for FstState {
             Some(edge) => {
                 let (index, (_, to_state)) = edge;
 
-                let outputs = &self.outputs;
+                let outputs = self.inner.get_outputs().unwrap();
                 let output_on_transition = &outputs[index];
 
                 Some((to_state, &output_on_transition))
@@ -280,14 +128,14 @@ impl AutomatonState for FstState {
     //check whether current state has outgoing transitions
     #[inline]
     fn has_children(&self) -> bool {
-        !(self.transitions.is_empty())
+        !(self.get_transitions().is_empty())
     }
 
     //get last child of current state
     //last is based on lexicographic order
     #[inline]
     fn last_child(&self) -> Option<usize> {
-        match self.transitions.last() {
+        match self.get_transitions().last() {
             Some((_, child_state)) => Some(*child_state),
             None => None,
         }
@@ -295,19 +143,21 @@ impl AutomatonState for FstState {
 
     #[inline]
     fn add_transition(&mut self, y: u8, new_state_address: usize) {
-        self.transitions.push((y, new_state_address));
-        assert!(self.transitions.len() > 0);
+        self.inner.add_transition(y, new_state_address);
+        assert!(self.get_transitions().len() > 0);
 
         //create new empty output
-        self.outputs.push(TransitionOutput::new());
-        assert_eq!(self.transitions.len(), self.outputs.len());
+
+        self.add_output();
+        assert_eq!(
+            self.get_transitions().len(),
+            self.get_outputs().unwrap().len()
+        );
     }
 
     #[inline]
     fn clear_state(&mut self) {
-        self.is_final = false;
-        self.transitions.clear();
-        self.outputs.clear();
+        self.inner.clear_state();
     }
 
     //fn get_address(&self) -> usize {
@@ -315,15 +165,15 @@ impl AutomatonState for FstState {
     //}
 
     fn is_final(&self) -> bool {
-        self.is_final
+        self.inner.is_final()
     }
 
     fn get_transitions(&self) -> &[(u8, usize)] {
-        &self.transitions
+        self.inner.get_transitions()
     }
 
     fn get_outputs(&self) -> Option<&[TransitionOutput]> {
-        Some(&self.outputs)
+        self.inner.get_outputs()
     }
 }
 
@@ -336,27 +186,20 @@ impl WithAddress for FstState {
 //are both states in the same equivalence class
 impl PartialEq for FstState {
     fn eq(&self, other_state: &Self) -> bool {
-        if self.is_final != other_state.is_final {
+        if self.is_final() != other_state.is_final() {
             return false;
         }
 
-        match self.transitions.len() != other_state.transitions.len() {
+        match self.get_transitions().len() != other_state.get_transitions().len() {
             true => return false,
             false => (),
         }
 
-        let transitions_equal = self.are_transitions_equal(other_state);
+        let transitions_equal = self.inner.are_transitions_equal(&other_state.inner);
 
-        let outputs_equal = self.are_outputs_equal(other_state);
+        let outputs_equal = self.inner.are_outputs_equal(&other_state.inner);
 
         let res = transitions_equal && outputs_equal;
-
-        //if res {
-        //    println!("equivalent states");
-        //    dbg!(self);
-        //    println!("to");
-        //    dbg!(other_state);
-        //}
 
         return res;
     }
@@ -364,38 +207,8 @@ impl PartialEq for FstState {
 
 impl Eq for FstState {}
 
-//get the index of the last prefix character insaddresse y
-pub(crate) fn common_prefix_index(previous_str: &[u8], y: &[u8]) -> usize {
-    //TODO SIMD it using chunk_exact
-    let prefix_len = previous_str
-        .iter()
-        .zip(y)
-        .take_while(|(x, y)| x == y)
-        .count();
-
-    assert!(prefix_len <= y.len());
-    return prefix_len;
-}
-
 pub fn bytes_to_utf8(bytes: &[u8]) -> &str {
     return std::str::from_utf8(bytes).unwrap();
-}
-
-pub fn common_prefix<'a>(previous_str: &'a [u8], y: &'a [u8]) -> &'a [u8] {
-    //TODO SIMD it using chunk_exact
-    let prefix_len = previous_str
-        .iter()
-        .zip(y)
-        .take_while(|(x, y)| x == y)
-        .count();
-
-    assert!(prefix_len <= y.len());
-
-    if previous_str.len() >= y.len() {
-        return &previous_str[..prefix_len];
-    }
-
-    return &y[..prefix_len];
 }
 
 #[allow(unused)]
@@ -407,23 +220,23 @@ mod fst_state_unit_tests {
 
     #[test]
     fn output_eq_1() {
-        let t_out_1 = TransitionOutput::new_with_value("ciao".as_bytes().into());
-        let t_out_2 = TransitionOutput::new_with_value("ciao".as_bytes().into());
+        let t_out_1 = Some(vec![b"ciao"]);
+        let t_out_2 = Some(vec![b"ciao"]);
 
         assert!(t_out_1.eq(&t_out_2));
     }
 
     #[test]
     fn output_eq_2() {
-        let t_out_1 = TransitionOutput::new_with_value("cia".as_bytes().into());
-        let t_out_2 = TransitionOutput::new_with_value("cza".as_bytes().into());
+        let t_out_1 = Some(vec![b"cia"]);
+        let t_out_2 = Some(vec![b"cza"]);
 
         assert_ne!(t_out_1, t_out_2);
     }
 
     #[test]
     fn state_eq_1() {
-        let mut state_1 = FstState::new();
+        let mut state_1 = FstState::new(0, false);
 
         state_1.add_transition(100, 1);
         state_1.set_last_output("ciao".as_bytes());
@@ -432,7 +245,7 @@ mod fst_state_unit_tests {
         state_1.add_transition(103, 3);
         state_1.set_last_output("pizza".as_bytes());
 
-        let mut state_2 = FstState::new();
+        let mut state_2 = FstState::new(0, false);
 
         state_2.add_transition(100, 1);
         state_2.set_last_output("ciao".as_bytes());
@@ -446,7 +259,7 @@ mod fst_state_unit_tests {
 
     #[test]
     fn state_eq_2() {
-        let mut state_1 = FstState::new();
+        let mut state_1 = FstState::new(0, false);
 
         state_1.add_transition(100, 1);
         state_1.set_last_output("ciao".as_bytes());
@@ -455,7 +268,7 @@ mod fst_state_unit_tests {
         state_1.add_transition(103, 3);
         state_1.set_last_output("pizza".as_bytes());
 
-        let mut state_2 = FstState::new();
+        let mut state_2 = FstState::new(0, false);
 
         state_2.add_transition(100, 1);
         state_2.set_last_output("ciao".as_bytes());
@@ -469,7 +282,7 @@ mod fst_state_unit_tests {
 
     #[test]
     fn state_eq_3() {
-        let mut state_1 = FstState::new();
+        let mut state_1 = FstState::new(0, false);
 
         state_1.add_transition(100, 1);
         state_1.set_last_output("ciao".as_bytes());
@@ -478,7 +291,7 @@ mod fst_state_unit_tests {
         state_1.add_transition(103, 3);
         state_1.set_last_output("pizza".as_bytes());
 
-        let mut state_2 = FstState::new();
+        let mut state_2 = FstState::new(0, false);
 
         state_2.add_transition(100, 1);
         state_2.set_last_output("ciao".as_bytes());
@@ -490,7 +303,7 @@ mod fst_state_unit_tests {
 
     #[test]
     fn prefix_len() {
-        let mut state = FstState::new();
+        let mut state = FstState::new(0, false);
 
         state.add_transition(100, 1);
         state.set_last_output(&"ciao".as_bytes());
@@ -508,7 +321,7 @@ mod fst_state_unit_tests {
 
     #[test]
     fn clear_last_out() {
-        let mut state = FstState::new();
+        let mut state = FstState::new(0, false);
 
         state.add_transition(100, 1);
         state.set_last_output("ciao".as_bytes());
@@ -517,12 +330,12 @@ mod fst_state_unit_tests {
         assert!(old_out_vec.len() == 4);
         assert_eq!(old_out_vec[0] as char, 'c');
         assert_eq!(old_out_vec[3] as char, 'o');
-        assert_eq!(state.get_last_output().get_value_as_deref(), None);
+        assert_eq!(state.get_last_output(), None);
     }
 
     #[test]
     fn drain_last_out() {
-        let mut state = FstState::new();
+        let mut state = FstState::new(0, false);
 
         state.add_transition(100, 1);
         state.set_last_output("ciao".as_bytes());
@@ -536,7 +349,7 @@ mod fst_state_unit_tests {
 
     #[test]
     fn propagate_prefix() {
-        let mut state = FstState::new();
+        let mut state = FstState::new(0, false);
 
         state.add_transition(100, 1);
         state.set_last_output("ciao".as_bytes());
@@ -547,11 +360,11 @@ mod fst_state_unit_tests {
 
         state.propagate_new_prefix(Some("ratto ".as_bytes()));
 
-        let output = state.outputs[0].get_value_unwrapped();
-        assert_eq!(output, "ratto ciao".as_bytes());
-        let output = state.outputs[1].get_value_unwrapped();
-        assert_eq!(output, "ratto topo".as_bytes());
-        let output = state.outputs[2].get_value_unwrapped();
-        assert_eq!(output, "ratto pizza".as_bytes());
+        let output = &state.get_outputs().unwrap()[0];
+        assert_eq!(output.as_deref().unwrap(), b"ratto ciao");
+        let output = &state.get_outputs().unwrap()[1];
+        assert_eq!(output.as_deref().unwrap(), b"ratto topo");
+        let output = &state.get_outputs().unwrap()[2];
+        assert_eq!(output.as_deref().unwrap(), b"ratto pizza");
     }
 }

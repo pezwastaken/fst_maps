@@ -29,12 +29,12 @@ impl Map {
         for c in input_tape {
             let (next_state_addr, transition_output) = current_state.delta_with_output(*c)?;
 
-            if current_state.is_final {
+            if current_state.is_final() {
                 output.clear();
             }
 
             //append edge value to the output that is being built
-            match transition_output.get_value_as_deref() {
+            match transition_output {
                 Some(value) => output.extend_from_slice(value),
                 None => {}
             }
@@ -43,7 +43,7 @@ impl Map {
             //dbg!(&current_state);
         }
 
-        if current_state.is_final {
+        if current_state.is_final() {
             return Some(output);
         }
         None

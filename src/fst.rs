@@ -3,9 +3,11 @@ use bincode::error::EncodeError;
 use crate::{
     automaton::{Automaton, AutomatonState},
     error::MyResult,
-    fst_state::{FstState, common_prefix_index},
+    fst_state::FstState,
+    raw_fst_state::InnerFstState,
     raw_writer::RawWriter,
     register::Register,
+    utils::common_prefix_index,
 };
 
 type States = Vec<FstState>;
@@ -51,13 +53,13 @@ impl<'a> Transducer<'a> {
     }
 
     pub fn push_zinit_state(&mut self) {
-        self.temp_states.push(FstState {
+        self.temp_states.push(
+            FstState::new(9999, false),
             //TODO this is just a placeholder for the initial state
-            address: 99999,
-            is_final: false,
-            transitions: Vec::new(),
-            outputs: Vec::new(),
-        });
+            // is_final: false,
+            // transitions: Vec::new(),
+            // outputs: Vec::new(),
+        );
     }
 
     ///This should always just follow the last path (states in temp_states vec)
@@ -86,16 +88,16 @@ impl<'a> Transducer<'a> {
 
             if let Some((_new_state, output)) = self.temp_states[i].delta_with_output(*byte) {
                 //Keep track of current output
-                if output.has_value() {
+                if output.is_some() {
                     let len_before_extend = tmp.len();
-                    tmp.extend_from_slice(&output.get_value_unwrapped());
+                    tmp.extend_from_slice(output.as_deref().unwrap());
                     //TODO output should never be Some but empty!
                     assert!(tmp.len() > len_before_extend);
                 }
 
                 //new state is final.
                 //Update the last seen final state to some(current_state)
-                if self.temp_states[i].is_final {
+                if self.temp_states[i].is_final() {
                     last_seen_final_state = Some(i);
 
                     //push tmp to tmp_outputs and reset tmp
@@ -159,15 +161,9 @@ impl<'a> Transducer<'a> {
             //if last loop iteration the state is to be marked as final
             let is_state_final = i == string_len - 1;
 
-            let new_state: FstState = FstState {
-                //address: self.states.len(),
-                address: 1,
-                is_final: is_state_final,
-                transitions: Vec::new(),
-                outputs: Vec::new(),
-            };
+            let new_state: FstState = FstState::new(1, is_state_final);
 
-            assert!(new_state.transitions.is_empty());
+            assert!(new_state.get_transitions().is_empty());
             self.temp_states.push(new_state);
 
             assert!(self.temp_states.len() > 1);
@@ -281,7 +277,6 @@ impl<'a> Transducer<'a> {
         self.last_key[0..self.last_key_len].fill(0);
     }
 
-    //TODO this probably contains as many errors as lines of code
     fn first_output_on_path_to(&self, last_state: usize) -> Option<usize> {
         //keep going until last_state is reached
         for (i, state) in self.temp_states[..last_state].iter().enumerate() {
@@ -291,7 +286,7 @@ impl<'a> Transducer<'a> {
                 let last_output = state.get_last_output();
 
                 //if no output on last transition => continue searching on `last path`
-                match last_output.get_value_as_deref() {
+                match last_output {
                     Some(_) => return Some(i),
                     None => {
                         continue;
@@ -388,7 +383,7 @@ impl<'a> Transducer<'a> {
             //propagate diff from previous iteration if and only if the current state is not final.
             //A final state means that output on previous edges constitutes its total output
             //Propagating would mean modifying the value associated with that final state (key)
-            if !state.is_final {
+            if !state.is_final() {
                 state.propagate_new_prefix(diff.as_deref());
             } else {
                 if i != first_state_index {
@@ -400,7 +395,7 @@ impl<'a> Transducer<'a> {
             let current_last_output = state.get_last_output();
 
             //find common prefix between output and value
-            if let Some(output) = current_last_output.get_value_as_deref() {
+            if let Some(output) = current_last_output {
                 //output on last edge has some value. It is NOT None
 
                 let prefix_up_to: usize;
@@ -459,7 +454,7 @@ impl<'a> Transducer<'a> {
         self.temp_states[..=up_to]
             .iter()
             .rev()
-            .position(|state| state.is_final)
+            .position(|state| state.is_final())
             .map(|i| up_to - i)
     }
 }
@@ -470,7 +465,7 @@ impl<'a> Automaton for Transducer<'a> {
         self.temp_states
             .get(state)
             .expect("no state with index: {state}")
-            .is_final
+            .is_final()
     }
 
     fn get(&self, _input_tape: &[u8]) -> Option<Vec<u8>> {

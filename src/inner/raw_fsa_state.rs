@@ -1,6 +1,6 @@
 use bincode::{Decode, Encode};
 
-use crate::{automaton::AutomatonState, fst_state::TransitionOutput};
+use crate::{automaton::AutomatonState, raw_fst_state::TransitionOutput};
 
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct InnerFsaState {
