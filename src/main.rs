@@ -27,8 +27,8 @@ mod register;
 mod set;
 
 fn main() {
-    #[cfg(feature = "dhat-heap")]
-    let _profiler = dhat::Profiler::new_heap();
+    // #[cfg(feature = "dhat-heap")]
+    // let _profiler = dhat::Profiler::new_heap();
 
     println!("size of each FsaState: {}", size_of::<fsa::FsaState>());
     // println!("size of each transition: {}", size_of::<(u8, usize)>());

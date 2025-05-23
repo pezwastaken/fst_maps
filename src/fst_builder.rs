@@ -17,10 +17,7 @@ pub fn build_transducer_from_collection<'a>(
     //input_stream: &mut T,
     filename: &str,
     output_to: &'a str,
-) -> Result<Transducer<'a>, FstError>
-//where
-    //T: Iterator<Item = Vec<u8>>,
-{
+) -> bool {
     let mut transducer = Transducer::new(output_to);
 
     transducer.push_zinit_state();
@@ -46,9 +43,6 @@ pub fn build_transducer_from_collection<'a>(
             //key common prefix len
             let prefix_len = common_prefix_index(&transducer.last_key, &key);
 
-            //key common prefix
-            //let prefix = &key[0..prefix_len];
-
             let last_state_index = prefix_len;
 
             let seen_final_state_index = transducer.temp_contains_final(last_state_index);
@@ -67,9 +61,6 @@ pub fn build_transducer_from_collection<'a>(
                 last_state_index,
                 seen_final_state_index,
             );
-
-            //println!("done with key: {}", std::str::from_utf8(key).unwrap());
-            //println!();
         }
     }
 
@@ -79,9 +70,8 @@ pub fn build_transducer_from_collection<'a>(
     transducer
         .persist_initial_state()
         .expect("couldn't serialize initial state");
-    //println!("fst output to file!");
 
-    return Ok(transducer);
+    true
 }
 
 fn read_lines(filename: &str) -> io::Result<io::Lines<io::BufReader<File>>> {

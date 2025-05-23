@@ -235,7 +235,6 @@ impl<'a> Acceptor<'a> {
 
         let mut state = self.states.pop().unwrap();
 
-        state.inner.transitions.shrink_to_fit();
         state.address = address;
 
         self.register.add_state(state);
@@ -266,13 +265,6 @@ impl<'a> Acceptor<'a> {
             self.max_bytes_state = wrote;
         }
 
-        // match self.writer.write_fixed_int(wrote) {
-        //     Ok(_) => {
-        //         self.writer.flush()?;
-        //         Ok(())
-        //     }
-        //     Err(e) => Err(e.into()),
-        // }
         self.writer.write_fixed_int(wrote)?;
 
         match self.writer.write_fixed_int(self.max_bytes_state) {

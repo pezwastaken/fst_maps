@@ -26,6 +26,8 @@ pub struct Transducer<'a> {
     pub last_value_len: usize,
     register: Register<FstState>,
     writer: RawWriter<'a>,
+
+    max_bytes_state: usize,
 }
 
 impl<'a> Transducer<'a> {
@@ -40,6 +42,8 @@ impl<'a> Transducer<'a> {
                 last_value_len: 0,
                 register: Register::new(),
                 writer: wr,
+
+                max_bytes_state: 0,
             }
         } else {
             panic!("couldn't create an fst mapped to the given file");
@@ -242,7 +246,11 @@ impl<'a> Transducer<'a> {
     pub fn persist_state(&mut self, i: usize) -> Result<(), EncodeError> {
         let state = &self.temp_states[i];
 
-        let _ = self.writer.write_state::<FstState>(state)?;
+        let wrote = self.writer.write_state::<FstState>(state)?;
+
+        if wrote > self.max_bytes_state {
+            self.max_bytes_state = wrote;
+        }
 
         //this is the address that is to be returned
         Ok(())
@@ -253,8 +261,11 @@ impl<'a> Transducer<'a> {
 
         let wrote = self.writer.write_state::<FstState>(&state)?;
 
-        //this is the address that is to be returned
-        //let total_written_bytes = self.writer.get_written_bytes();
+        if wrote > self.max_bytes_state {
+            self.max_bytes_state = wrote;
+        }
+
+        self.writer.write_fixed_int(wrote)?;
 
         match self.writer.write_fixed_int(wrote) {
             Ok(_) => {
@@ -263,18 +274,6 @@ impl<'a> Transducer<'a> {
             }
             Err(e) => Err(e.into()),
         }
-
-        ////write initial state
-        //self.persist_state(0)
-        //    .expect("couldn't persist initial state to file");
-        //
-        //dbg!(&self.temp_states[0]);
-        //
-        ////write its len (in terms of bytes) to file.
-        //match self.writer.write_fixed_int(wrote) {
-        //    Ok(_) => {}
-        //    Err(e) => panic!("error while writing fixed int: {e:?}"),
-        //}
     }
 
     #[inline]

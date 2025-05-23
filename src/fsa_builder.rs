@@ -5,7 +5,7 @@ use std::{
 
 use crate::fsa::Acceptor;
 
-pub fn build_fsa<'a>(filename: &str, output_to: &'a str) -> Option<Acceptor<'a>> {
+pub fn build_fsa<'a>(filename: &str, output_to: &'a str) -> bool {
     let mut fsa = Acceptor::new(30, output_to);
 
     if let Ok(lines) = read_lines(filename) {
@@ -49,7 +49,7 @@ pub fn build_fsa<'a>(filename: &str, output_to: &'a str) -> Option<Acceptor<'a>>
     }
 
     //println!("fsa output to file!");
-    Some(fsa)
+    true
 }
 
 fn read_lines(filename: &str) -> io::Result<io::Lines<io::BufReader<File>>> {

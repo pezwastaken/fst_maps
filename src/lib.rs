@@ -34,19 +34,30 @@ mod get_from_fst {
         io::{self, BufRead},
     };
 
-    use crate::{
-        fst::Transducer,
-        fst_builder::{build_transducer_from_collection, dump_graph},
-        map::Map,
-    };
+    use crate::{fst::Transducer, fst_builder::build_transducer_from_collection, map::Map};
 
-    // #[test]
-    // fn ensure_tons() {
-    //     build_transducer_from_collection("maps/tons_of_pairs.txt", "indices/tons.fst");
-    //     let mut map = Map::new("indices/tons.fst");
-    //
-    //     ensure_all_pairs(&mut map, "maps/tons_of_pairs.txt");
-    // }
+    #[test]
+    fn ensure_tons() {
+        assert!(build_transducer_from_collection(
+            "maps_data/bag.txt",
+            "maps/bag.fst"
+        ));
+
+        let mut map = Map::new("maps/bag.fst");
+
+        ensure_all_pairs(&mut map, "maps_data/bag.txt");
+
+        assert_eq!(map.get(b"armadillo"), None);
+        assert_eq!(map.get(b""), None);
+        assert_eq!(map.get(b"do"), None);
+        assert_eq!(map.get(b"doo"), None);
+        assert_eq!(map.get(b"dogo"), None);
+        assert_eq!(map.get(b"dogg"), None);
+        assert_eq!(map.get(b"f"), None);
+        assert_eq!(map.get(b"fo"), None);
+        assert_eq!(map.get(b"fogg"), None);
+        assert_eq!(map.get(b"fogo"), None);
+    }
 
     fn ensure_all_pairs(fst: &mut Map, filename: &str) {
         if let Ok(lines) = read_lines(filename) {

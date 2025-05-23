@@ -86,7 +86,8 @@ impl FuzzySet {
 
         if current_state.is_final() {
             if self.check_terminator_char(char_at, dula) {
-                dbg!(std::str::from_utf8(output_str).unwrap());
+                println!("found string: {}", std::str::from_utf8(output_str).unwrap());
+                // dbg!(std::str::from_utf8(output_str).unwrap());
             }
         }
 

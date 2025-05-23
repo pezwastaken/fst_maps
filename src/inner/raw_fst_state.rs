@@ -20,23 +20,6 @@ impl InnerFstState {
         self.set_last_transition_child(other_state)
     }
 
-    ///All transitions must be equal for this to return true.
-    ///This means that each character must be associated with the same state
-    pub fn are_transitions_equal(&self, other_state: &InnerFsaState) -> bool {
-        let self_transitions = &self.transitions;
-        let other_state_transitions = &other_state.transitions;
-
-        //actually check transitions
-        //compare char of transition 1 with char of transition 2
-        //same thing with destination states
-        let all_transitions_equal = self_transitions
-            .iter()
-            .zip(other_state_transitions)
-            .all(|((char1, state1), (char2, state2))| (*char1 == *char2) && (*state1 == *state2));
-
-        return all_transitions_equal;
-    }
-
     ///TODO should be used by merge_with
     pub fn set_last_transition_child(&mut self, to_state: usize) -> bool {
         assert!(!self.transitions.is_empty());
@@ -157,7 +140,9 @@ impl InnerFstState {
         }
     }
 
-    fn are_transitions_equal(&self, other_state: &Self) -> bool {
+    ///All transitions must be equal for this to return true.
+    ///This means that each character must be associated with the same state
+    pub fn are_transitions_equal(&self, other_state: &InnerFsaState) -> bool {
         let self_transitions = &self.transitions;
         let other_state_transitions = &other_state.transitions;
 
