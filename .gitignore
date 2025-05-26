@@ -7,3 +7,5 @@
 *.fst
 *.fsa
 *.json
+
+!notes.txt
