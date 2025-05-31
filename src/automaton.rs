@@ -1,4 +1,4 @@
-use crate::raw_fst_state::TransitionOutput;
+pub type TransitionOutput = Option<Vec<u8>>;
 
 pub trait Automaton {
     fn get(&self, input_tape: &[u8]) -> Option<Vec<u8>>;

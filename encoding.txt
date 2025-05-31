@@ -1,0 +1,46 @@
+States are represented by an address, a `is_final` flag and a vector of transitions.
+As soon as a state gets frozen we have to write that state to file. This is the moment when we compress the topo.
+
+
+The encoder function takes a state as input and decides how to encode it. It has 4 options:
+
+    - final state with no transitions (only one)
+
+    - Simple state => just one transition and no apparent destination address. The destination is implicit, it's the state which sits right next to the current one.
+
+    - Simple state with address => used by states that had their children minimized. One symbol + the destination address encoded with varint.
+
+    - Complex state, multi-transition => to be used whenever a state has more than one outgoing transition.
+
+
+
+The type of the state is identified by the first three bits of the first byte that is read:
+
+    [000z] => simple state (0), one implicit destination (0), character fits in the following 5 bits (0)
+    [001z] => simple state (0), one implicit destination (0), character continues in the next byte (1). MAX 2 bytes
+
+
+    [010z] => simple state (0), one destination (1), character continues in the next byte (1). MAX 2 bytes
+
+
+    [1001] => final state with no outgoing transitions.
+
+
+    [1xyz] => complex state (1),
+                x:
+                    if 1 then this is the last transition;
+                    if 0 then this is NOT the last transition;
+
+                y:
+                    if 0 then the symbol fits in the following 4 bits;
+                    if 1 then the symbol continues in the following byte (MAX 2 byte for an 8 bit symbol);
+
+    Note
+    the FIRST symbol that begins with a [1] must not have the next bit (flag) set to [1] => that would mean it is a simple state.
+
+
+    the [z] flag (always fourth position) indicates whether a state is final or not.
+
+
+this only needs a "new" encoding for the symbols (relatively easy).
+Then varint can be used to encode the destination addresses.

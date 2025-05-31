@@ -1,10 +1,14 @@
-use bincode::{Decode, Encode, error::EncodeError};
+use std::io;
+
+use bincode::{Decode, Encode, enc, error::EncodeError};
 
 use crate::{
-    automaton::{AutomatonState, WithAddress},
+    automaton::{AutomatonState, TransitionOutput, WithAddress},
+    compressed_states::{
+        self, Complex, CompressedFsaState, NoTransitions, Simple, SimpleWithNext, encoded_len,
+    },
     error::MyResult,
     raw_fsa_state::InnerFsaState,
-    raw_fst_state::TransitionOutput,
     raw_writer::RawWriter,
     register::Register,
 };
@@ -40,6 +44,48 @@ impl FsaState {
     ///TODO should be used by merge_with
     pub fn set_last_transition_child(&mut self, to_state: usize) -> bool {
         self.inner.set_last_transition_child(to_state)
+    }
+
+    fn compress_state(&self, prev_state_addr: Option<usize>) -> CompressedFsaState {
+        let transitions = self.get_transitions();
+
+        // dbg!(&transitions);
+
+        match transitions.len() {
+            0 => CompressedFsaState::NoTransitionsState(NoTransitions, self.address),
+            n if n > 1 => CompressedFsaState::ComplexState(
+                Complex::new(self.inner.transitions.clone(), self.inner.is_final),
+                self.address,
+            ),
+            _ => {
+                let (c, to_state) = &transitions[0];
+                // let encoded_len = encoded_len(*c);
+
+                //simple state
+                if let Some(prev_addr) = prev_state_addr {
+                    // dbg!(self.address);
+                    // dbg!(prev_addr);
+                    // dbg!(*to_state);
+
+                    if prev_addr == *to_state {
+                        return CompressedFsaState::SimpleState(
+                            Simple::new(*c, self.is_final()),
+                            self.address,
+                        );
+                    } else {
+                        return CompressedFsaState::SimpleWithNextState(
+                            SimpleWithNext::new(*c, *to_state, self.is_final()),
+                            self.address,
+                        );
+                    }
+                } else {
+                    return CompressedFsaState::SimpleWithNextState(
+                        SimpleWithNext::new(*c, *to_state, self.is_final()),
+                        self.address,
+                    );
+                }
+            }
+        }
     }
 }
 
@@ -109,6 +155,8 @@ pub struct Acceptor<'a> {
     pub register: Register<FsaState>,
     writer: RawWriter<'a>,
     max_bytes_state: usize,
+
+    pub prev_state_addr: Option<usize>,
 }
 
 impl<'a> Acceptor<'a> {
@@ -127,6 +175,8 @@ impl<'a> Acceptor<'a> {
                 register: Register::new(),
                 writer: wr,
                 max_bytes_state: 0,
+
+                prev_state_addr: None,
             }
         } else {
             panic!("couldn't create a writer to the given file");
@@ -221,51 +271,45 @@ impl<'a> Acceptor<'a> {
         self.register.get_equivalent(state)
     }
 
-    //TODO
-    //address should simply be total_written_bytes and must be set before writing
-    //the current state to file.
-    //
-    //
     fn add_to_register(&mut self, i: usize) -> Result<usize, EncodeError> {
         assert_eq!(i, self.states.len() - 1);
-        //let address = self.persist_state(i)?;
-        let address = self.writer.get_written_bytes();
-
-        self.persist_state(i)?;
 
         let mut state = self.states.pop().unwrap();
 
-        state.address = address;
+        let compressed_state = state.compress_state(self.prev_state_addr);
 
+        let encoded_addr = self.persist_state(&compressed_state).unwrap();
+
+        self.prev_state_addr = Some(encoded_addr);
+
+        state.address = encoded_addr;
         self.register.add_state(state);
 
-        Ok(address)
+        Ok(encoded_addr)
     }
 
     ///Writes the given FsaState and then its length (in bytes).
     ///Returns the address to the start of the state len.
-    pub fn persist_state(&mut self, i: usize) -> Result<(), EncodeError> {
-        let state = &self.states[i];
+    pub fn persist_state(&mut self, state: &CompressedFsaState) -> io::Result<usize> {
+        dbg!(state);
 
-        let wrote = self.writer.write_state::<InnerFsaState>(&state.inner)?;
+        let wrote = self.writer.write_state::<CompressedFsaState>(&state)?;
 
         if wrote > self.max_bytes_state {
             self.max_bytes_state = wrote;
         }
 
-        Ok(())
+        Ok(self.writer.get_written_bytes() - 1)
     }
 
     pub fn persist_initial_state(&mut self) -> MyResult<()> {
-        let state = &self.states[0];
+        let initial_state = &self.states[0];
 
-        let wrote = self.writer.write_state::<InnerFsaState>(&state.inner)?;
+        let compressed_state = initial_state.compress_state(self.prev_state_addr);
+        let encoded_addr = self.persist_state(&compressed_state)?;
 
-        if wrote > self.max_bytes_state {
-            self.max_bytes_state = wrote;
-        }
-
-        self.writer.write_fixed_int(wrote)?;
+        //NOTE: should be useless now
+        // self.writer.write_fixed_int(wrote)?;
 
         match self.writer.write_fixed_int(self.max_bytes_state) {
             Ok(_) => {

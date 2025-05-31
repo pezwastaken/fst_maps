@@ -1,7 +1,0 @@
-TODO
-
-get rid of BasicState and only keep multi,basicwithnext,notransitions.
-The way it is now the decoder would have to predict the length of the next state in order to jump to its address.
-    This is because the next address can't simply be deduced from the current one.
-
-

@@ -5,6 +5,8 @@ use std::io::{self, BufWriter, Write};
 use bincode::Encode;
 use bincode::error::EncodeError;
 
+use crate::compressed_states::Encodable;
+
 #[derive(Debug)]
 pub struct RawWriter<'a> {
     inner_writer: BufWriter<File>,
@@ -27,20 +29,27 @@ impl<'a> RawWriter<'a> {
         self.written_bytes
     }
 
-    pub fn write_state<T>(&mut self, state: &T) -> Result<usize, EncodeError>
+    pub fn write_state<T>(&mut self, state: &T) -> io::Result<usize>
     where
-        T: Encode,
+        T: Encodable,
     {
-        let wrote = bincode::encode_into_std_write(
-            &state,
-            &mut self.inner_writer,
-            bincode::config::standard(),
-        );
-        if let Ok(b) = wrote {
-            self.written_bytes += b;
-            return Ok(b);
-        }
-        wrote
+        // todo!("should take a compressed state");
+
+        let wrote = state.encode(&mut self.inner_writer)?;
+        self.written_bytes += wrote;
+
+        Ok(wrote)
+
+        // let wrote = bincode::encode_into_std_write(
+        //     &state,
+        //     &mut self.inner_writer,
+        //     bincode::config::standard(),
+        // );
+        // if let Ok(b) = wrote {
+        //     self.written_bytes += b;
+        //     return Ok(b);
+        // }
+        // wrote
     }
 
     ///Writes an int with fixed length encoding
