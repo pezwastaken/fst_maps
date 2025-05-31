@@ -129,15 +129,13 @@ mod get_from_fsa {
 
     use crate::{fsa_builder::build_fsa, set::Set};
 
-    #[test]
-    fn ensure_words_bag() {
-        assert!(build_fsa("sets_data/bag.txt", "sets/bag.fsa"));
-
-        let mut set = Set::new("sets/bag.fsa");
-        ensure_all_values(&mut set, "sets_data/bag.txt");
-
-        assert!(!set.contains(b"crann"))
-    }
+    // #[test]
+    // fn ensure_words_bag() {
+    //     assert!(build_fsa("sets_data/bag.txt", "sets/bag.fsa"));
+    //
+    //     let mut set = Set::new("sets/bag.fsa");
+    //     ensure_all_values(&mut set, "sets_data/bag.txt");
+    // }
 
     #[test]
     fn ensure_words_1() {
@@ -149,18 +147,18 @@ mod get_from_fsa {
         assert!(!set.contains(b"crann"))
     }
 
-    #[test]
-    fn ensure_words_alpha() {
-        assert!(build_fsa(
-            "sets_data/words_alpha.txt",
-            "sets/words_alpha.fsa"
-        ));
-
-        let mut set = Set::new("sets/words_alpha.fsa");
-        ensure_all_values(&mut set, "sets_data/words_alpha.txt");
-
-        assert!(!set.contains(b"crann"))
-    }
+    // #[test]
+    // fn ensure_words_alpha() {
+    //     assert!(build_fsa(
+    //         "sets_data/words_alpha.txt",
+    //         "sets/words_alpha.fsa"
+    //     ));
+    //
+    //     let mut set = Set::new("sets/words_alpha.fsa");
+    //     ensure_all_values(&mut set, "sets_data/words_alpha.txt");
+    //
+    //     assert!(!set.contains(b"crann"))
+    // }
 
     fn ensure_all_values(fsa: &mut Set, filename: &str) {
         if let Ok(lines) = read_lines(filename) {

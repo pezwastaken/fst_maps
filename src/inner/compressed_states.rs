@@ -7,6 +7,12 @@ pub trait Encodable {
     fn encode(&self, writer: &mut BufWriter<File>) -> io::Result<usize>;
 }
 
+pub trait Decodable {
+    fn from_slice(bytes: &[u8], addr: usize) -> (Self, usize)
+    where
+        Self: Sized;
+}
+
 #[derive(Debug)]
 pub struct NoTransitions;
 #[derive(Debug)]
@@ -50,33 +56,66 @@ impl Encodable for CompressedFsaState {
     }
 }
 
-impl NoTransitions {
-    pub fn encode(&self, buffer: &mut BufWriter<File>) -> io::Result<usize> {
-        buffer.write(&[0x50u8])
-    }
-
-    pub fn decode(bytes: &[u8]) -> Self {
-        assert_eq!(bytes[0], 0x50);
-        NoTransitions
-    }
-}
-
-struct Writer {
-    buffer: [u8; 100],
-    count: usize,
-}
-
-impl Writer {
-    fn new() -> Self {
-        Self {
-            buffer: [0; 100],
-            count: 0,
+impl Decodable for CompressedFsaState {
+    fn from_slice(bytes: &[u8], addr: usize) -> (Self, usize) {
+        let tag = detect_compressed_type(bytes[bytes.len() - 1]);
+        // dbg!(addr);
+        match tag {
+            CompressedStateTag::NoT => {
+                let (inner, read) = NoTransitions::decode(bytes);
+                // dbg!(&inner);
+                // dbg!(read);
+                return (CompressedFsaState::NoTransitionsState(inner, addr), read);
+            }
+            CompressedStateTag::Simple => {
+                let (inner, read) = Simple::decode(bytes);
+                // dbg!(&inner);
+                // dbg!(read);
+                return (CompressedFsaState::SimpleState(inner, addr), read);
+            }
+            CompressedStateTag::SimpleWN => {
+                let (inner, read) = SimpleWithNext::decode(bytes);
+                // dbg!(&inner);
+                // dbg!(read);
+                return (CompressedFsaState::SimpleWithNextState(inner, addr), read);
+            }
+            CompressedStateTag::Comp => {
+                let (inner, read) = Complex::decode(bytes);
+                // dbg!(&inner);
+                // dbg!(read);
+                return (CompressedFsaState::ComplexState(inner, addr), read);
+            }
+            CompressedStateTag::Unknown => unreachable!(),
         }
     }
+}
 
-    fn write_byte(&mut self, b: u8) {
-        self.buffer[self.count] = b;
-        self.count += 1;
+pub enum CompressedStateTag {
+    NoT,
+    Simple,
+    SimpleWN,
+    Comp,
+    Unknown,
+}
+
+pub fn detect_compressed_type(hdr: u8) -> CompressedStateTag {
+    match (hdr >> 4) & 0b0000_1100u8 {
+        0b0000 => CompressedStateTag::Simple,
+        0b0100 => CompressedStateTag::SimpleWN,
+        0b1000 => CompressedStateTag::Comp,
+        0b1100 => CompressedStateTag::NoT,
+        _ => CompressedStateTag::Unknown,
+    }
+}
+
+impl NoTransitions {
+    pub fn encode(&self, buffer: &mut BufWriter<File>) -> io::Result<usize> {
+        buffer.write(&[0xD0u8])
+    }
+
+    pub fn decode(bytes: &[u8]) -> (Self, usize) {
+        assert_eq!(bytes[bytes.len() - 1], 0xD0u8);
+        (NoTransitions, 1)
     }
 }
 
@@ -120,14 +159,14 @@ impl Simple {
         }
     }
 
-    fn decode(bytes: &[u8]) -> Self {
+    pub fn decode(bytes: &[u8]) -> (Self, usize) {
         let first_byte = bytes[bytes.len() - 1];
         match first_byte {
             c if first_byte < 32 => {
                 let is_final = (c & 0x10) == 0x10;
 
                 let tmp = c & 0x0F;
-                Simple(tmp, is_final)
+                (Simple(tmp, is_final), 1)
             }
 
             c => {
@@ -140,7 +179,7 @@ impl Simple {
 
                 let tmp = first_4 | remaining;
 
-                Simple(tmp, is_final)
+                (Simple(tmp, is_final), 2)
             }
         }
     }
@@ -201,7 +240,6 @@ impl SimpleWithNext {
                 //set first 4 bits to [000f] (byte continues)
                 let f = (is_final as u8) << 4;
                 let res_1 = BASE_FIRST_BYTE | leftmost_bits | f | SYMBOL_CONTINUES;
-                println!("encoded first byte (simple WITH extra byte): {:08b}", res_1);
 
                 //move the four lower bits to the upper side
                 let rightmost_bits = c << 4;
@@ -218,7 +256,7 @@ impl SimpleWithNext {
         }
     }
 
-    fn decode(bytes: &[u8]) -> Self {
+    pub fn decode(bytes: &[u8]) -> (Self, usize) {
         let first_byte = bytes[bytes.len() - 1];
 
         let is_final = (first_byte & 0x10) == 0x10;
@@ -229,17 +267,17 @@ impl SimpleWithNext {
 
                 let symbol = decode_symbol_1_byte(c);
 
-                let (to_state, _) = decode_u64(&bytes[..bytes.len() - 1]);
+                let (to_state, read) = decode_u64(&bytes[..bytes.len() - 1]);
 
-                Self(symbol, to_state as usize, is_final)
+                (Self(symbol, to_state as usize, is_final), read + 1)
             }
 
             _ => {
                 let symbol = decode_symbol_2_bytes(first_byte, bytes[bytes.len() - 2]);
 
-                let (to_state, _) = decode_u64(&bytes[..bytes.len() - 2]);
+                let (to_state, read) = decode_u64(&bytes[..bytes.len() - 2]);
 
-                Self(symbol, to_state as usize, is_final)
+                (Self(symbol, to_state as usize, is_final), read + 2)
             }
         }
     }
@@ -255,6 +293,11 @@ impl SimpleWithNext {
     pub fn get_dest(&self) -> usize {
         self.1
     }
+
+    #[inline(always)]
+    pub fn is_final(&self) -> bool {
+        self.2
+    }
 }
 
 impl Complex {
@@ -265,8 +308,7 @@ impl Complex {
         }
     }
 
-    ///Returns the encoded symbol plus the number of bytes needed.
-    ///Either 1 or 2.
+    ///Returns the number of bytes needed.
     fn encode(&self, buffer: &mut BufWriter<File>) -> io::Result<usize> {
         let transitions = &self.0;
 
@@ -303,7 +345,7 @@ impl Complex {
         self.encode_transition(t_index, BASE_FIRST_BYTE, buffer)
     }
 
-    pub fn decode(bytes: &[u8]) -> Self {
+    pub fn decode(bytes: &[u8]) -> (Self, usize) {
         let buffer_last = bytes.len() - 1;
         let first_byte = bytes[buffer_last];
 
@@ -316,7 +358,7 @@ impl Complex {
         let mut i: usize = buffer_last;
 
         loop {
-            dbg!(i);
+            // dbg!(i);
             let hdr = bytes[i];
             // dbg!(i);
 
@@ -325,7 +367,7 @@ impl Complex {
                 c if (hdr & 0x20u8) == 0 => {
                     let tmp_symbol = decode_symbol_1_byte(c);
                     i -= 1;
-                    dbg!(i);
+                    // dbg!(i);
                     tmp_symbol
                 }
 
@@ -333,29 +375,29 @@ impl Complex {
                 _ => {
                     let tmp_symbol = decode_symbol_2_bytes(bytes[i], bytes[i - 1]);
                     i -= 2;
-                    dbg!(i);
+                    // dbg!(i);
                     tmp_symbol
                 }
             };
 
             let (to_state, read) = decode_u64(&bytes[..=i]);
-            dbg!(read);
-            dbg!(i);
-
-            dbg!(symbol as char);
-            dbg!(to_state);
+            // dbg!(read);
+            // dbg!(i);
+            //
+            // dbg!(symbol as char);
+            // dbg!(to_state);
 
             transitions.push((symbol, to_state as usize));
+
+            i -= read;
 
             match hdr & 0x40u8 {
                 0 => (),
                 _ => break,
             }
-
-            i -= read;
         }
 
-        Self(transitions, is_final)
+        (Self(transitions, is_final), buffer_last - i)
     }
 
     fn encode_transition(
@@ -390,10 +432,6 @@ impl Complex {
 
                 //set first 4 bits to [000f] (byte continues)
                 let res_1 = base | SYMBOL_CONTINUES | is_final | leftmost_bits;
-                println!(
-                    "encoded first byte (complex WITH extra byte): {:08b}",
-                    res_1
-                );
 
                 let written = encode_u64_reverse(buffer, to_state as u64)?;
 
@@ -426,6 +464,16 @@ impl Complex {
     pub fn get_transitions(&self) -> &[(u8, usize)] {
         &self.0
     }
+
+    #[inline(always)]
+    pub fn is_final(&self) -> bool {
+        self.1
+    }
+
+    #[inline]
+    pub fn take_transitions(self) -> Vec<(u8, usize)> {
+        self.0
+    }
 }
 
 #[inline]
@@ -443,14 +491,14 @@ fn decode_symbol_1_byte(byte: u8) -> u8 {
 
 #[inline]
 pub fn encoded_len(byte: u8) -> usize {
-    if byte < 16 {
+    if byte & 0x20 == 0 {
         return 1;
     }
     2
 }
 
 ///Encodes a u64 using varint and returns the number of written bytes
-fn encode_u64_reverse(buffer: &mut BufWriter<File>, v: u64) -> io::Result<usize> {
+pub fn encode_u64_reverse(buffer: &mut BufWriter<File>, v: u64) -> io::Result<usize> {
     if v < 0x80 {
         return buffer.write(&[v as u8]);
         // return 1;
@@ -545,7 +593,7 @@ fn inner_encode_u64_reverse(buffer: &mut BufWriter<File>, v: u64) -> io::Result<
 ///Decode the first available u64 starting from byte 0.
 ///Returns the decoded u64 and the number of read bytes.
 ///Giving it more bytes does simply nothing.
-fn decode_u64(bytes: &[u8]) -> (u64, usize) {
+pub fn decode_u64(bytes: &[u8]) -> (u64, usize) {
     let buffer_last = bytes.len() - 1;
     let hdr = bytes[buffer_last];
 
@@ -603,7 +651,7 @@ fn decode_u64(bytes: &[u8]) -> (u64, usize) {
                 | (bytes[buffer_last - 5] as u64) << 16
                 | (bytes[buffer_last - 6] as u64) << 8
                 | bytes[buffer_last - 7] as u64,
-            7,
+            8,
         ),
         _ => (
             (bytes[buffer_last - 1] as u64) << 56
@@ -614,7 +662,7 @@ fn decode_u64(bytes: &[u8]) -> (u64, usize) {
                 | (bytes[buffer_last - 6] as u64) << 16
                 | (bytes[buffer_last - 7] as u64) << 8
                 | bytes[buffer_last - 8] as u64,
-            8,
+            9,
         ),
     }
 }

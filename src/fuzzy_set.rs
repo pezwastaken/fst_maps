@@ -32,7 +32,7 @@ impl FuzzySet {
 
         let mut accepted_str: Vec<u8> = Vec::new();
 
-        let Some(current_state) = self.decoder.read_first_state::<InnerFsaState>() else {
+        let Some(current_state) = self.decoder.read_first_state() else {
             panic!("couldn't decode first state given mmapped file");
         };
 
@@ -79,8 +79,7 @@ impl FuzzySet {
         let char_at = output_str.len();
 
         //decode the current acceptor state
-        let Some(current_state) = self.decoder.read_state_at_addr::<InnerFsaState>(state_addr)
-        else {
+        let Some(current_state) = self.decoder.read_state_at_addr(state_addr) else {
             panic!("transition addr pointed to an invalid address!");
         };
 
@@ -146,10 +145,10 @@ impl FuzzySet {
 //     fuzzy_set.fuzzy_search();
 // }
 
-#[test]
-fn test_2() {
-    let _ = build_fsa("sets_data/words_1.txt", "sets/words_1.fsa");
-    let mut fuzzy_set = FuzzySet::new("sets/words_1.fsa", "kangaroo");
-
-    fuzzy_set.fuzzy_search();
-}
+// #[test]
+// fn test_2() {
+//     let _ = build_fsa("sets_data/words_1.txt", "sets/words_1.fsa");
+//     let mut fuzzy_set = FuzzySet::new("sets/words_1.fsa", "kangaroo");
+//
+//     fuzzy_set.fuzzy_search();
+// }

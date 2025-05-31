@@ -10,6 +10,7 @@ pub fn build_fsa<'a>(filename: &str, output_to: &'a str) -> bool {
 
     if let Ok(lines) = read_lines(filename) {
         for line in lines.map_while(Result::ok) {
+            fsa.prev_state_addr = None;
             let bytes = &line.as_bytes();
 
             assert_ne!(bytes.len(), 0);
@@ -35,7 +36,6 @@ pub fn build_fsa<'a>(filename: &str, output_to: &'a str) -> bool {
             let word_len = item.len();
 
             fsa.clear_last_str();
-            fsa.prev_state_addr = None;
 
             fsa.last_str_len = word_len;
             fsa.last_str[..word_len].copy_from_slice(&item[..word_len]);

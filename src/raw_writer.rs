@@ -2,10 +2,7 @@ use std::fs::File;
 
 use std::io::{self, BufWriter, Write};
 
-use bincode::Encode;
-use bincode::error::EncodeError;
-
-use crate::compressed_states::Encodable;
+use crate::compressed_states::{Encodable, encode_u64_reverse};
 
 #[derive(Debug)]
 pub struct RawWriter<'a> {
@@ -52,24 +49,26 @@ impl<'a> RawWriter<'a> {
         // wrote
     }
 
-    ///Writes an int with fixed length encoding
-    pub fn write_int(&mut self, x: usize) -> Result<(), EncodeError> {
-        let config = bincode::config::standard();
+    // ///Writes an int with fixed length encoding
+    // pub fn write_int(&mut self, x: usize) -> Result<(), EncodeError> {
+    //     let config = bincode::config::standard();
+    //
+    //     let wrote = bincode::encode_into_std_write(x, &mut self.inner_writer, config)?;
+    //
+    //     self.written_bytes += wrote;
+    //     Ok(())
+    // }
 
-        let wrote = bincode::encode_into_std_write(x, &mut self.inner_writer, config)?;
+    ///Writes an int with fixed length encoding
+    pub fn write_int(&mut self, x: usize) -> io::Result<usize> {
+        // let config = bincode::config::standard().with_fixed_int_encoding();
+
+        // let wrote = bincode::encode_into_std_write(x, &mut self.inner_writer, config)?;
+
+        let wrote = encode_u64_reverse(&mut self.inner_writer, x as u64)?;
 
         self.written_bytes += wrote;
-        Ok(())
-    }
-
-    ///Writes an int with fixed length encoding
-    pub fn write_fixed_int(&mut self, x: usize) -> Result<(), EncodeError> {
-        let config = bincode::config::standard().with_fixed_int_encoding();
-
-        let wrote = bincode::encode_into_std_write(x, &mut self.inner_writer, config)?;
-
-        self.written_bytes += wrote;
-        Ok(())
+        Ok(wrote)
     }
 
     pub fn flush(&mut self) -> io::Result<()> {

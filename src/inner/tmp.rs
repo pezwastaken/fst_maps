@@ -132,7 +132,6 @@ impl SimpleWithNext {
                 //set first 4 bits to [000f] (byte continues)
                 let f = (is_final as u8) << 4;
                 let res_1 = BASE_FIRST_BYTE | leftmost_bits | f | SYMBOL_CONTINUES;
-                println!("encoded first byte (simple WITH extra byte): {:08b}", res_1);
 
                 //move the four lower bits to the upper side
                 let rightmost_bits = c << 4;
@@ -291,10 +290,6 @@ impl Complex {
 
                 //set first 4 bits to [000f] (byte continues)
                 let res_1 = base | SYMBOL_CONTINUES | is_final | leftmost_bits;
-                println!(
-                    "encoded first byte (complex WITH extra byte): {:08b}",
-                    res_1
-                );
 
                 let written = encode_u64_reverse(buffer, to_state as u64);
 

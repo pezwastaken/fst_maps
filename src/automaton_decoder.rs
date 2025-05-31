@@ -1,11 +1,18 @@
-use bincode::{Decode, error::DecodeError};
 use memmap2::{Mmap, MmapOptions};
+use std::fmt::Debug;
 use std::fs::File;
+
+use crate::{
+    compressed_states::{
+        Complex, CompressedFsaState, CompressedStateTag, Decodable, NoTransitions, Simple,
+        SimpleWithNext, decode_u64, detect_compressed_type,
+    },
+    raw_fsa_state::InnerFsaState,
+};
 
 pub struct AutomatonDecoder {
     mmap: Option<Mmap>,
     file: File,
-    // prev_addr: usize,
     max_state_len: usize,
 }
 
@@ -22,62 +29,37 @@ impl AutomatonDecoder {
         })
     }
 
-    fn try_decode_state<T>(&self, offset: usize) -> Result<T, DecodeError>
+    ///Returns the decoded state and the number of read bytes
+    fn try_decode_state<T>(&self, addr: usize) -> Option<(T, usize)>
     where
-        T: Decode<()>,
+        T: Decodable + Debug,
     {
         // assert!(self.prev_addr > offset);
         if let Some(bytes) = self.mmap.as_ref() {
             assert!(!bytes.is_empty());
 
-            let upper_bound = offset + self.max_state_len;
+            let state_slice = &bytes[..=addr];
 
-            let decoded = bincode::decode_from_slice::<T, _>(
-                &bytes[offset..upper_bound],
-                bincode::config::standard(),
-            );
+            let (decoded_state, read_bytes) = T::from_slice(state_slice, addr);
 
-            //simply return the object while discarding the number of read bytes
-            decoded.map(|(obj, _)| obj)
+            return Some((decoded_state, read_bytes));
+
+            // &bytes[lower_bound..=addr],
         } else {
             panic!("try_decode_state called on None mmap");
         }
     }
 
-    fn try_decode_int(&self, offset: usize, is_fixed_int: bool) -> Result<usize, DecodeError> {
+    fn try_decode_int(&self, at: usize) -> Option<(u64, usize)> {
         if let Some(bytes) = self.mmap.as_ref() {
-            //let config = bincode::config::standard().with_fixed_int_encoding();
-            //let upper_bound = offset + len;
+            const MAX_U64_LEN: usize = 9;
 
-            let decoded;
-            if !is_fixed_int {
-                let config = bincode::config::standard();
-                decoded =
-                    bincode::decode_from_slice::<usize, _>(&bytes[offset..offset + 8], config);
-            } else {
-                let config = bincode::config::standard().with_fixed_int_encoding();
-                decoded =
-                    bincode::decode_from_slice::<usize, _>(&bytes[offset..offset + 8], config);
-            }
-
-            //simply return the integer while discarding the number of read bytes
-            decoded.map(|(obj, _)| obj)
+            let decoded = decode_u64(&bytes[..=at]);
+            return Some(decoded);
         } else {
-            panic!("try_decode called on None mmap");
+            todo!("should return None!");
         }
     }
-
-    //fn mmap_buf(&mut self, offset: u64, len: usize) {
-    //    //TODO handle errors when mapping the file
-    //    self.mmap = Some(unsafe {
-    //        MmapOptions::new()
-    //            .offset(offset)
-    //            .len(len)
-    //            .map(&self.file)
-    //            .unwrap()
-    //    });
-    //    //dbg!(&self.mmap);
-    //}
 
     fn file_len(&self) -> Option<u64> {
         match self.file.metadata() {
@@ -86,34 +68,28 @@ impl AutomatonDecoder {
         }
     }
 
-    pub fn read_first_state<T>(&mut self) -> Option<T>
-    where
-        T: Decode<()>,
-    {
-        const FIXED_U64_LEN: usize = 8;
-
+    pub fn read_first_state(&mut self) -> Option<InnerFsaState> {
         let file_len = self.file_len()?;
         assert_ne!(file_len, 0);
+        // dbg!(file_len);
 
-        let offset = file_len as usize - FIXED_U64_LEN;
+        let at = file_len as usize - 1;
 
-        let Ok(max_state_len) = self.try_decode_int(offset, true) else {
+        let Some((max_state_len, read_bytes)) = self.try_decode_int(at) else {
             return None;
         };
 
-        self.max_state_len = max_state_len;
+        // dbg!(max_state_len);
+        // dbg!(read_bytes);
 
-        let offset = offset - FIXED_U64_LEN;
+        self.max_state_len = max_state_len as usize;
 
-        let Ok(state_len) = self.try_decode_int(offset, true) else {
-            return None;
-        };
+        //here's where the first state begins
+        let at = at - read_bytes;
+        // dbg!(at);
 
-        assert!(offset > offset - state_len);
-        let offset = offset - state_len;
-
-        let res = self.read_state_at_addr::<T>(offset);
-        if offset == 0 {
+        let res = self.read_state_at_addr(at);
+        if at == 0 {
             println!("offset is 0 in read state at addr");
         }
 
@@ -122,13 +98,8 @@ impl AutomatonDecoder {
 
     ///decodes an fst state given its address by first deserializing its length (fixed 8 bytes
     ///starting from addr)
-    pub fn read_state_at_addr<T>(&mut self, addr: usize) -> Option<T>
-    where
-        T: Decode<()>,
-    {
-        const FIXED_U64_LEN: u64 = 8;
-
-        let Ok(state) = self.try_decode_state::<T>(addr) else {
+    pub fn read_state_at_addr(&mut self, addr: usize) -> Option<InnerFsaState> {
+        let Some(state) = self.try_decode_state::<CompressedFsaState>(addr) else {
             eprintln!(
                 "couldn't decode state starting from offset {} from file {:?}",
                 addr,
@@ -137,6 +108,8 @@ impl AutomatonDecoder {
             return None;
         };
 
-        return Some(state);
+        let res = InnerFsaState::from(state.0);
+        // dbg!(&res);
+        Some(res)
     }
 }

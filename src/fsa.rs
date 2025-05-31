@@ -1,7 +1,5 @@
 use std::io;
 
-use bincode::{Decode, Encode, enc, error::EncodeError};
-
 use crate::{
     automaton::{AutomatonState, TransitionOutput, WithAddress},
     compressed_states::{
@@ -15,7 +13,7 @@ use crate::{
 
 ///Represents a single state of a FSA (Finite State Automaton)
 ///TODO address should be address and the rest of the fields should be moved to 'InnerState'
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone)]
 pub struct FsaState {
     address: usize,
     inner: InnerFsaState,
@@ -60,6 +58,8 @@ impl FsaState {
             _ => {
                 let (c, to_state) = &transitions[0];
                 // let encoded_len = encoded_len(*c);
+
+                assert_ne!(*c, 0);
 
                 //simple state
                 if let Some(prev_addr) = prev_state_addr {
@@ -271,16 +271,25 @@ impl<'a> Acceptor<'a> {
         self.register.get_equivalent(state)
     }
 
-    fn add_to_register(&mut self, i: usize) -> Result<usize, EncodeError> {
+    fn add_to_register(&mut self, i: usize) -> Result<usize, ()> {
         assert_eq!(i, self.states.len() - 1);
 
         let mut state = self.states.pop().unwrap();
+
+        if state.inner.transitions.len() > 0 {
+            assert_ne!(state.inner.transitions[0].0, 0);
+        }
 
         let compressed_state = state.compress_state(self.prev_state_addr);
 
         let encoded_addr = self.persist_state(&compressed_state).unwrap();
 
         self.prev_state_addr = Some(encoded_addr);
+
+        if encoded_addr == 100 {
+            dbg!(&compressed_state);
+            dbg!(&state);
+        }
 
         state.address = encoded_addr;
         self.register.add_state(state);
@@ -291,7 +300,7 @@ impl<'a> Acceptor<'a> {
     ///Writes the given FsaState and then its length (in bytes).
     ///Returns the address to the start of the state len.
     pub fn persist_state(&mut self, state: &CompressedFsaState) -> io::Result<usize> {
-        dbg!(state);
+        // dbg!(state);
 
         let wrote = self.writer.write_state::<CompressedFsaState>(&state)?;
 
@@ -305,13 +314,16 @@ impl<'a> Acceptor<'a> {
     pub fn persist_initial_state(&mut self) -> MyResult<()> {
         let initial_state = &self.states[0];
 
+        if initial_state.inner.transitions.len() > 0 {
+            assert_ne!(initial_state.inner.transitions[0].0, 0);
+        }
+
         let compressed_state = initial_state.compress_state(self.prev_state_addr);
-        let encoded_addr = self.persist_state(&compressed_state)?;
+        let _ = self.persist_state(&compressed_state)?;
 
-        //NOTE: should be useless now
-        // self.writer.write_fixed_int(wrote)?;
+        dbg!("max state len is: ", self.max_bytes_state);
 
-        match self.writer.write_fixed_int(self.max_bytes_state) {
+        match self.writer.write_int(self.max_bytes_state) {
             Ok(_) => {
                 self.writer.flush()?;
                 Ok(())

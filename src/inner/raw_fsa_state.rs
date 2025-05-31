@@ -1,6 +1,9 @@
 use bincode::{Decode, Encode};
 
-use crate::automaton::{AutomatonState, TransitionOutput};
+use crate::{
+    automaton::{AutomatonState, TransitionOutput},
+    compressed_states::{CompressedFsaState, encoded_len},
+};
 
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct InnerFsaState {
@@ -13,6 +16,14 @@ impl InnerFsaState {
         Self {
             is_final: f,
             transitions: Vec::new(),
+        }
+    }
+
+    #[inline]
+    pub fn new_with_transition(t: (u8, usize), f: bool) -> Self {
+        Self {
+            is_final: f,
+            transitions: vec![t],
         }
     }
 
@@ -121,5 +132,28 @@ impl PartialEq for InnerFsaState {
         let res = transitions_equal;
 
         return res;
+    }
+}
+
+impl From<CompressedFsaState> for InnerFsaState {
+    fn from(value: CompressedFsaState) -> Self {
+        match value {
+            CompressedFsaState::NoTransitionsState(no_transitions, _) => Self::new(true),
+            CompressedFsaState::SimpleState(simple, addr) => {
+                let len = encoded_len(simple.get_symbol());
+                let t = (simple.get_symbol(), addr - len);
+
+                Self::new_with_transition(t, simple.is_final())
+            }
+            CompressedFsaState::SimpleWithNextState(simple_with_next, _) => {
+                let t = (simple_with_next.get_symbol(), simple_with_next.get_dest());
+
+                Self::new_with_transition(t, simple_with_next.is_final())
+            }
+            CompressedFsaState::ComplexState(complex, _) => Self {
+                is_final: complex.is_final(),
+                transitions: complex.take_transitions(),
+            },
+        }
     }
 }

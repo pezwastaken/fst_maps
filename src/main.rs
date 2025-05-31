@@ -1,5 +1,6 @@
 use fsa_builder::build_fsa;
 use fuzzy_set::FuzzySet;
+use set::Set;
 
 mod automaton;
 mod automaton_decoder;
@@ -38,7 +39,13 @@ fn main() {
     // println!("size of each transition: {}", size_of::<(u8, usize)>());
 
     // let _ = build_fsa("sets_data/words_alpha.txt", "sets/words_alpha.fsa");
-    let _ = build_fsa("sets_data/bag.txt", "sets/bag.fsa");
+    let _ = build_fsa("sets_data/words_1.txt", "sets/words_1.fsa");
+    // let mut fuzzy_set = FuzzySet::new("sets/bag.fsa", "dog");
+
+    println!("----------------------\n\n\n");
+
+    let mut set = Set::new("sets/words_1.fsa");
+    dbg!(set.contains(b"baa"));
 
     // let mut fuzzy_set = FuzzySet::new("sets/words_alpha.fsa", "dog");
 

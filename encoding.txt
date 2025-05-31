@@ -23,7 +23,7 @@ The type of the state is identified by the first three bits of the first byte th
     [010z] => simple state (0), one destination (1), character continues in the next byte (1). MAX 2 bytes
 
 
-    [1001] => final state with no outgoing transitions.
+    [1101] => final state with no outgoing transitions.
 
 
     [1xyz] => complex state (1),
