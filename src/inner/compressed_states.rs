@@ -358,7 +358,6 @@ impl Complex {
         let mut i: usize = buffer_last;
 
         loop {
-            // dbg!(i);
             let hdr = bytes[i];
             // dbg!(i);
 
@@ -438,6 +437,8 @@ impl Complex {
                 //move the four lower bits to the upper side
                 let rightmost_bits = c << 4;
 
+                // dbg!([res_1, rightmost_bits]);
+
                 buffer.write(&[rightmost_bits, res_1])?;
 
                 Ok(written + 2)
@@ -486,7 +487,7 @@ fn decode_symbol_2_bytes(first_byte: u8, second_byte: u8) -> u8 {
 
 #[inline]
 fn decode_symbol_1_byte(byte: u8) -> u8 {
-    byte & 0x0F
+    byte & 0x0Fu8
 }
 
 #[inline]
@@ -514,7 +515,7 @@ fn inner_encode_u64_reverse(buffer: &mut BufWriter<File>, v: u64) -> io::Result<
             // 2
         }
         v if v < 1 << 21 => {
-            let x = ((v as u32) | 0xC00000) << 8;
+            let x = ((v as u32) | 0xC00000);
             buffer.write(&[x as u8, (x >> 8) as u8, (x >> 16) as u8])
             // 3
         }
@@ -524,7 +525,7 @@ fn inner_encode_u64_reverse(buffer: &mut BufWriter<File>, v: u64) -> io::Result<
             // 4
         }
         v if v < 1 << 35 => {
-            let x = (v | 0xF000000000) << 24;
+            let x = (v | 0xF000000000);
             buffer.write(&[
                 x as u8,
                 (x >> 8) as u8,
@@ -535,7 +536,7 @@ fn inner_encode_u64_reverse(buffer: &mut BufWriter<File>, v: u64) -> io::Result<
             // 5
         }
         v if v < 1 << 42 => {
-            let x = (v | 0xF80000000000) << 16;
+            let x = (v | 0xF80000000000);
             buffer.write(&[
                 x as u8,
                 (x >> 8) as u8,
@@ -547,7 +548,7 @@ fn inner_encode_u64_reverse(buffer: &mut BufWriter<File>, v: u64) -> io::Result<
             // 6
         }
         v if v < 1 << 49 => {
-            let x = (v | 0xFC000000000000) << 8;
+            let x = (v | 0xFC000000000000);
             buffer.write(&[
                 x as u8,
                 (x >> 8) as u8,

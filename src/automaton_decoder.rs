@@ -79,19 +79,12 @@ impl AutomatonDecoder {
             return None;
         };
 
-        // dbg!(max_state_len);
-        // dbg!(read_bytes);
-
         self.max_state_len = max_state_len as usize;
 
         //here's where the first state begins
         let at = at - read_bytes;
-        // dbg!(at);
 
         let res = self.read_state_at_addr(at);
-        if at == 0 {
-            println!("offset is 0 in read state at addr");
-        }
 
         res
     }
@@ -109,7 +102,6 @@ impl AutomatonDecoder {
         };
 
         let res = InnerFsaState::from(state.0);
-        // dbg!(&res);
         Some(res)
     }
 }

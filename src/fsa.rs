@@ -276,20 +276,11 @@ impl<'a> Acceptor<'a> {
 
         let mut state = self.states.pop().unwrap();
 
-        if state.inner.transitions.len() > 0 {
-            assert_ne!(state.inner.transitions[0].0, 0);
-        }
-
         let compressed_state = state.compress_state(self.prev_state_addr);
 
         let encoded_addr = self.persist_state(&compressed_state).unwrap();
 
         self.prev_state_addr = Some(encoded_addr);
-
-        if encoded_addr == 100 {
-            dbg!(&compressed_state);
-            dbg!(&state);
-        }
 
         state.address = encoded_addr;
         self.register.add_state(state);
@@ -314,14 +305,9 @@ impl<'a> Acceptor<'a> {
     pub fn persist_initial_state(&mut self) -> MyResult<()> {
         let initial_state = &self.states[0];
 
-        if initial_state.inner.transitions.len() > 0 {
-            assert_ne!(initial_state.inner.transitions[0].0, 0);
-        }
-
         let compressed_state = initial_state.compress_state(self.prev_state_addr);
-        let _ = self.persist_state(&compressed_state)?;
 
-        dbg!("max state len is: ", self.max_bytes_state);
+        let _ = self.persist_state(&compressed_state)?;
 
         match self.writer.write_int(self.max_bytes_state) {
             Ok(_) => {
