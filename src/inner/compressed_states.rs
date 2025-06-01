@@ -3,6 +3,8 @@ use std::{
     io::{self, BufWriter, Write},
 };
 
+use crate::mappings::{COMMON_TABLE, INVERSE_COMMON_TABLE};
+
 pub trait Encodable {
     fn encode(&self, writer: &mut BufWriter<File>) -> io::Result<usize>;
 }
@@ -129,6 +131,8 @@ impl Simple {
     fn encode(&self, buffer: &mut BufWriter<File>) -> io::Result<usize> {
         let c = self.0;
 
+        let c = COMMON_TABLE[c as usize];
+
         match c {
             //fits in one encoded byte
             c if c < 16 => {
@@ -166,6 +170,8 @@ impl Simple {
                 let is_final = (c & 0x10) == 0x10;
 
                 let tmp = c & 0x0F;
+                let tmp = INVERSE_COMMON_TABLE[tmp as usize];
+
                 (Simple(tmp, is_final), 1)
             }
 
@@ -178,6 +184,7 @@ impl Simple {
                 let remaining = second_byte >> 4;
 
                 let tmp = first_4 | remaining;
+                let tmp = INVERSE_COMMON_TABLE[tmp as usize];
 
                 (Simple(tmp, is_final), 2)
             }
@@ -212,6 +219,8 @@ impl SimpleWithNext {
     ///Returns the number of bytes needed.
     fn encode(&self, buffer: &mut BufWriter<File>) -> io::Result<usize> {
         let c = self.0;
+        let c = COMMON_TABLE[c as usize];
+
         let to_state = self.1;
         let is_final = self.2;
 
@@ -266,6 +275,7 @@ impl SimpleWithNext {
                 //char fits in one byte (first_byte) and then there's the varint u64
 
                 let symbol = decode_symbol_1_byte(c);
+                let symbol = INVERSE_COMMON_TABLE[symbol as usize];
 
                 let (to_state, read) = decode_u64(&bytes[..bytes.len() - 1]);
 
@@ -274,6 +284,7 @@ impl SimpleWithNext {
 
             _ => {
                 let symbol = decode_symbol_2_bytes(first_byte, bytes[bytes.len() - 2]);
+                let symbol = INVERSE_COMMON_TABLE[symbol as usize];
 
                 let (to_state, read) = decode_u64(&bytes[..bytes.len() - 2]);
 
@@ -379,6 +390,7 @@ impl Complex {
                 }
             };
 
+            let symbol = INVERSE_COMMON_TABLE[symbol as usize];
             let (to_state, read) = decode_u64(&bytes[..=i]);
             // dbg!(read);
             // dbg!(i);
@@ -409,6 +421,7 @@ impl Complex {
 
         //encode the first transition
         let (c, to_state) = self.0[t_index];
+        let c = COMMON_TABLE[c as usize];
 
         match c {
             c if c < 16 => {
@@ -492,7 +505,10 @@ fn decode_symbol_1_byte(byte: u8) -> u8 {
 
 #[inline]
 pub fn encoded_len(byte: u8) -> usize {
-    if byte & 0x20 == 0 {
+    let byte = COMMON_TABLE[byte as usize];
+
+    if byte < 16 {
+        // if byte & 0x20 == 0 {
         return 1;
     }
     2

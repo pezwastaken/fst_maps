@@ -14,6 +14,7 @@ mod dula;
 mod error;
 mod fsa;
 mod fsa_builder;
+mod mappings;
 // mod fst;
 // mod fst_builder;
 // mod fst_state;

@@ -13,6 +13,7 @@ mod dula;
 mod error;
 mod fsa;
 mod fsa_builder;
+mod mappings;
 // mod fst;
 // mod fst_builder;
 // mod fst_state;
@@ -135,6 +136,11 @@ mod get_from_fsa {
 
         let mut set = Set::new("sets/bag.fsa");
         ensure_all_values(&mut set, "sets_data/bag.txt");
+
+        assert!(!set.contains(b"cocco"));
+        assert!(!set.contains(b"cia"));
+        assert!(!set.contains(b"ciaooo"));
+        assert!(!set.contains(b"canguri"));
     }
 
     #[test]
@@ -144,7 +150,8 @@ mod get_from_fsa {
         let mut set = Set::new("sets/words_1.fsa");
         ensure_all_values(&mut set, "sets_data/words_1.txt");
 
-        assert!(!set.contains(b"crann"))
+        assert!(!set.contains(b"topo"));
+        assert!(!set.contains(b"crann"));
     }
 
     #[test]
@@ -157,7 +164,8 @@ mod get_from_fsa {
         let mut set = Set::new("sets/words_alpha.fsa");
         ensure_all_values(&mut set, "sets_data/words_alpha.txt");
 
-        assert!(!set.contains(b"crann"))
+        assert!(!set.contains(b"crann"));
+        assert!(!set.contains(b"topoo"));
     }
 
     fn ensure_all_values(fsa: &mut Set, filename: &str) {
