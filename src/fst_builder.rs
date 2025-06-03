@@ -1,5 +1,4 @@
 use crate::automaton::AutomatonState;
-use crate::fst::FstError;
 use crate::fst::Transducer;
 use crate::utils::common_prefix_index;
 
@@ -7,7 +6,6 @@ use core::result::Result;
 use std::fs::File;
 use std::io;
 use std::io::BufRead;
-use std::io::Write;
 
 //TODO empty files are not handled !?
 //

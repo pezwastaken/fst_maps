@@ -40,7 +40,7 @@ mod get_from_fst {
     use crate::{fst::Transducer, fst_builder::build_transducer_from_collection, map::Map};
 
     #[test]
-    fn ensure_tons() {
+    fn ensure_1() {
         assert!(build_transducer_from_collection(
             "maps_data/bag.txt",
             "maps/bag.fst"

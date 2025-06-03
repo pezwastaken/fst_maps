@@ -62,61 +62,6 @@ impl<'a> Transducer<'a> {
         );
     }
 
-    ///This should always just follow the last path (states in temp_states vec)
-    ///
-    ///process input tape starting from `state`.
-    ///Returns a tuple containing the reached state (if no errors) and the last seen final state if any, otherwise None.
-    pub fn delta_hat_final_state(&self, input_tape: &[u8]) -> (Option<usize>, Option<usize>) {
-        assert!(!self.temp_states.is_empty());
-
-        //a vector containing the output associated with the current final state
-        let mut current_output: Vec<u8> = Vec::new();
-
-        //a single output built while computing delta star. Once a final state is reached it is
-        //pushed onto tmp_outputs and reset
-        let mut tmp: Vec<u8> = Vec::with_capacity(input_tape.len());
-
-        let mut current_state = 0;
-
-        //final state found on path
-        let mut last_seen_final_state = None;
-
-        for (i, byte) in input_tape.iter().enumerate() {
-            //compute delta and get both the reached state and the possible output on the just made transition
-
-            current_state = i;
-
-            if let Some((_new_state, output)) = self.temp_states[i].delta_with_output(*byte) {
-                //Keep track of current output
-                if output.is_some() {
-                    let len_before_extend = tmp.len();
-                    tmp.extend_from_slice(output.as_deref().unwrap());
-                    //TODO output should never be Some but empty!
-                    assert!(tmp.len() > len_before_extend);
-                }
-
-                //new state is final.
-                //Update the last seen final state to some(current_state)
-                if self.temp_states[i].is_final() {
-                    last_seen_final_state = Some(i);
-
-                    //push tmp to tmp_outputs and reset tmp
-                    current_output = tmp;
-                    tmp = Vec::new();
-                }
-            }
-            //transition led to an error state
-            else {
-                return (None, None);
-            }
-        }
-
-        if last_seen_final_state.is_some() {
-            assert_ne!(current_output.len(), 0);
-        }
-        return (Some(current_state), last_seen_final_state);
-    }
-
     pub fn insert_pair(
         &mut self,
         key: &[u8],
@@ -448,7 +393,7 @@ impl<'a> Transducer<'a> {
         self.last_key[..word_len].copy_from_slice(&new_key[..]);
     }
 
-    ///Returns the last index of a final state insaddresse the temp_states vec (if any)
+    ///Returns the last index of a final state inside the temp_states vec (if any)
     ///Returns None in case no state is marked as final
     pub fn temp_contains_final(&self, up_to: usize) -> Option<usize> {
         self.temp_states[..=up_to]
@@ -471,59 +416,4 @@ impl<'a> Automaton for Transducer<'a> {
     fn get(&self, _input_tape: &[u8]) -> Option<Vec<u8>> {
         todo!();
     }
-
-    //process input tape (key) and return output collected along the path to a final state.
-    //Returns None if no final state is reached or an error state is reached
-    //fn get(&self, input_tape: &[u8]) -> Option<Vec<u8>> {
-    //    assert!(self.temp_states.len() > 0);
-    //
-    //    let mut current_state = 0;
-    //
-    //    let mut tmp: Vec<u8> = Vec::new();
-    //    let mut output: Vec<u8> = Vec::new();
-    //
-    //    for byte in input_tape.iter() {
-    //        let state = &self.temp_states[current_state];
-    //
-    //        if state.is_final {
-    //            output = tmp;
-    //            tmp = Vec::new();
-    //        }
-    //
-    //        //there exists a transition from state with byte
-    //        if let Some(transition) = state.delta_with_output(*byte) {
-    //            let (new_state, tmp_value) = transition;
-    //            //move to new state
-    //            assert!(current_state != new_state);
-    //            current_state = new_state;
-    //
-    //            //process output of transition.
-    //            //Not all transitions have output associated with them
-    //            if let Some(v) = tmp_value.get_value_as_deref() {
-    //                //if a value exists => extend final (possible) output with it
-    //                tmp.extend(v);
-    //            }
-    //        }
-    //        //no outgoing transition from state with byte
-    //        else {
-    //            return None;
-    //        }
-    //    }
-    //
-    //    //if a final state was reached => return the value
-    //    if self.is_final_state(current_state) {
-    //        output = tmp;
-    //        return Some(output);
-    //    }
-    //    //else return None => input_tape wasn't a valaddress key
-    //    else {
-    //        return None;
-    //    }
-    //}
 }
-
-pub enum FstError {}
-
-#[allow(unused)]
-#[cfg(test)]
-mod fst_unit_tests {}
