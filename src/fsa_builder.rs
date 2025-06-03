@@ -1,11 +1,15 @@
 use std::{
-    fs::File,
+    fs::{self, File, exists},
     io::{self, BufRead},
+    process::exit,
 };
 
-use crate::fsa::Acceptor;
+use crate::{fsa::Acceptor, register};
 
-pub fn build_fsa<'a>(filename: &str, output_to: &'a str) -> bool {
+pub fn build_fsa<'a>(filename: &str, output_to: &'a str) -> Result<(), ()> {
+    let _ = fs::metadata(filename)
+        .map_err(|err| eprintln!("\ninput file {filename} doesn't exist: {err}"))?;
+
     let mut fsa = Acceptor::new(30, output_to);
 
     if let Ok(lines) = read_lines(filename) {
@@ -49,8 +53,9 @@ pub fn build_fsa<'a>(filename: &str, output_to: &'a str) -> bool {
         _ => {}
     }
 
-    //println!("fsa output to file!");
-    true
+    // fsa.register.dump_counts();
+
+    Ok(())
 }
 
 fn read_lines(filename: &str) -> io::Result<io::Lines<io::BufReader<File>>> {

@@ -117,6 +117,12 @@ where
 
         return h;
     }
+
+    pub fn dump_counts(&self) {
+        for bucket in &self.buckets {
+            print!("{}, ", bucket.count);
+        }
+    }
 }
 //
 //#[test]

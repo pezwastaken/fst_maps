@@ -273,10 +273,6 @@ impl Complex {
             c if c < 16 => {
                 let first_byte = base | c | is_final;
 
-                println!(
-                    "encoded char (Complex (first) no extra byte): {:08b}",
-                    first_byte
-                );
                 let written = encode_u64_reverse(buffer, to_state as u64);
                 buffer.write_byte(first_byte);
 

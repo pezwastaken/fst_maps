@@ -43,14 +43,14 @@ fn main() {
     // let _ = build_fsa("sets_data/words_1.txt", "sets/words_1.fsa");
     // let mut fuzzy_set = FuzzySet::new("sets/bag.fsa", "dog");
 
-    let _ = build_fsa("sets_data/words_alpha.txt", "sets/words_alpha.fsa");
+    let _ = build_fsa("sets_data/words_alpha.txt", "sets/words_alpha.fsa").unwrap();
 
-    let mut set = Set::new("sets/words_alpha.fsa");
+    // let mut set = Set::new("sets/words_alpha.fsa");
     // ensure_all_values(&mut set, "sets_data/words_alpha.txt");
 
-    assert!(!set.contains(b"topo0"))
+    // assert!(!set.contains(b"topo0"));
 
     // let mut fuzzy_set = FuzzySet::new("sets/words_alpha.fsa", "dog");
-
+    //
     // fuzzy_set.fuzzy_search();
 }

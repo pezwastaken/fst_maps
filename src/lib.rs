@@ -132,7 +132,7 @@ mod get_from_fsa {
 
     #[test]
     fn ensure_words_bag() {
-        assert!(build_fsa("sets_data/bag.txt", "sets/bag.fsa"));
+        assert!(build_fsa("sets_data/bag.txt", "sets/bag.fsa").is_ok());
 
         let mut set = Set::new("sets/bag.fsa");
         ensure_all_values(&mut set, "sets_data/bag.txt");
@@ -145,7 +145,7 @@ mod get_from_fsa {
 
     #[test]
     fn ensure_words_1() {
-        assert!(build_fsa("sets_data/words_1.txt", "sets/words_1.fsa"));
+        assert!(build_fsa("sets_data/words_1.txt", "sets/words_1.fsa").is_ok());
 
         let mut set = Set::new("sets/words_1.fsa");
         ensure_all_values(&mut set, "sets_data/words_1.txt");
@@ -156,10 +156,7 @@ mod get_from_fsa {
 
     #[test]
     fn ensure_words_alpha() {
-        assert!(build_fsa(
-            "sets_data/words_alpha.txt",
-            "sets/words_alpha.fsa"
-        ));
+        assert!(build_fsa("sets_data/words_alpha.txt", "sets/words_alpha.fsa").is_ok());
 
         let mut set = Set::new("sets/words_alpha.fsa");
         ensure_all_values(&mut set, "sets_data/words_alpha.txt");

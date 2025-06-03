@@ -145,10 +145,10 @@ impl FuzzySet {
 //     fuzzy_set.fuzzy_search();
 // }
 
-// #[test]
-// fn test_2() {
-//     let _ = build_fsa("sets_data/words_1.txt", "sets/words_1.fsa");
-//     let mut fuzzy_set = FuzzySet::new("sets/words_1.fsa", "kangaroo");
-//
-//     fuzzy_set.fuzzy_search();
-// }
+#[test]
+fn test_2() {
+    let _ = build_fsa("sets_data/words_1.txt", "sets/words_1.fsa");
+    let mut fuzzy_set = FuzzySet::new("sets/words_1.fsa", "kangaroo");
+
+    fuzzy_set.fuzzy_search();
+}
